@@ -46,10 +46,17 @@ func (l *Lexer) NextToken() token.Token {
 	case '/':
 		l.readChar()
 		tok = token.Token{Type: token.REGEX, Literal: l.readUntilChar('/')}
+	case '-':
+		l.readChar()
+		if l.ch == '>' {
+			tok = token.Token{Type: token.GOTO, Literal: "->"}
+		} else {
+			tok = newToken(token.ILLEGAL, l.ch)
+		}
 	case ':':
 		tok = token.Token{Type: token.COLON, Literal: ":"}
-	case ',':
-		tok = token.Token{Type: token.COMMA, Literal: ","}
+	case ';':
+		tok = token.Token{Type: token.SEMICOLON, Literal: ";"}
 	case 0:
 		tok = token.Token{Type: token.EOF, Literal: ""}
 	default:
@@ -100,14 +107,14 @@ func (l *Lexer) skipWhitespace() {
 
 func (l *Lexer) readUntilChar(chars ...byte) string {
 	position := l.position
-	for !slices.Contains(chars, l.ch) {
+	for !slices.Contains(chars, l.ch) && l.ch != 0 {
 		l.readChar()
 	}
 	return l.input[position:l.position]
 }
 
 func isLetter(ch byte) bool {
-	return 'a' <= ch && ch <= 'z' || 'A' <= ch && ch <= 'Z' || ch == '_'
+	return 'a' <= ch && ch <= 'z' || 'A' <= ch && ch <= 'Z' || '0' <= ch && ch <= '9' || ch == '_'
 }
 
 func newToken(tokenType token.TokenType, ch byte) token.Token {

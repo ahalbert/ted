@@ -17,19 +17,22 @@ const (
 	STRING = "STRING"
 
 	//symbols
-	COLON    = ":"
-	COMMA    = ","
-	GOTO     = "->"
-	LOOPBACK = "-->"
+	COLON     = ":"
+	SEMICOLON = ";"
+	COMMA     = ","
+	GOTO      = "->"
+	LOOPBACK  = "-->"
 
 	//Keywords
 	DO    = "DO"
+	PRINT = "PRINT"
 	START = "START"
 	STOP  = "STOP"
 )
 
 var keywords = map[string]TokenType{
 	"do":    DO,
+	"print": PRINT,
 	"start": START,
 	"stop":  STOP,
 }
