@@ -8,3 +8,4 @@ clean:
 	rm -rf bin
 test:
 	go build -o bin/fsaed cmd/main.go
+	./tests/test.zsh
