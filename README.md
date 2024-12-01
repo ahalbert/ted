@@ -51,6 +51,11 @@ And you only want to print what's between the `baz`s
 $ fsaed -n '/baz/ /baz/;print' < file.txt
 ```
 
+Results in:
+```
+foo
+bar
+```
 
 ### Run sed if /regexs/ are seen, but reset if /badregex/ is seen
 
@@ -90,7 +95,7 @@ fsaed consists of *states*, which contain *actions*. During each execution, `fsa
 
 1. Read a line from the input.
 2. Execute each action for that state in the order parsed
-3. If an action requires it to move state, moves to the next line
+3. If an action requires it to move state, stops executing actions and moves to the next line
 
 
 ### Statement
