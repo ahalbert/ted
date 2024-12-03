@@ -2,11 +2,13 @@ package runner
 
 import (
 	"bufio"
+	"bytes"
 	"io"
 	"os"
 	"regexp"
 	"strconv"
 	"strings"
+	"text/template"
 
 	"github.com/ahalbert/fsaed/fsaed/ast"
 	"github.com/ahalbert/fsaed/fsaed/flags"
@@ -16,6 +18,7 @@ import (
 
 type Runner struct {
 	States        map[string]*State
+	Variables     map[string]string
 	fsa           ast.FSA
 	StartState    string
 	CurrState     string
@@ -30,9 +33,21 @@ type State struct {
 }
 
 func NewRunner(fsa ast.FSA, p *parser.Parser) *Runner {
-	r := &Runner{States: make(map[string]*State)}
+	r := &Runner{States: make(map[string]*State), Variables: make(map[string]string)}
 	r.parser = p
 	r.States["0"] = newState("0")
+	for _, varstring := range flags.Flags.Variables {
+		re, err := regexp.Compile("(.*?)=(.*)")
+		if err != nil {
+			panic("regex compile error")
+		}
+		matches := re.FindStringSubmatch(varstring)
+		if matches != nil {
+			r.Variables[matches[1]] = matches[2]
+		} else {
+			panic("unparsable variable --var " + varstring)
+		}
+	}
 	for _, statement := range fsa.Statements {
 		switch statement.(type) {
 		case *ast.StateStatement:
@@ -111,20 +126,28 @@ func (r *Runner) doAction(action ast.Action) {
 }
 
 func (r *Runner) doRegexAction(action ast.RegexAction) {
-
-	re, err := regexp.Compile(action.Rule)
+	rule := r.applyVariablesToString(action.Rule)
+	re, err := regexp.Compile(rule)
 	if err != nil {
-		panic("regexp error")
+		panic("regexp error, supplied: " + action.Rule + "\n formatted as: " + rule)
 	}
 	if re.MatchString(r.CurrLine) {
 		r.doAction(action.Action)
 	}
 }
 
+func (r *Runner) applyVariablesToString(input string) string {
+	var output bytes.Buffer
+	t := template.Must(template.New("").Parse(input))
+	t.Execute(&output, r.Variables)
+	return output.String()
+}
+
 func (r *Runner) doSedAction(action ast.DoSedAction) {
-	engine, err := sed.New(strings.NewReader(action.Command))
+	command := r.applyVariablesToString(action.Command)
+	engine, err := sed.New(strings.NewReader(command))
 	if err != nil {
-		panic("error building sed engine")
+		panic("error building sed engine with command: " + action.Command + "\n formatted as: " + command)
 	}
 	r.CurrLine, err = engine.RunString(r.CurrLine)
 	r.CurrLine = strings.TrimSuffix(r.CurrLine, "\n")

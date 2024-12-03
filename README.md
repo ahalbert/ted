@@ -19,7 +19,7 @@ baz
 And you only want to edit the final `baz` into `bang`, use this command:
 
 ```
-$ echo "baz\nfoo\nbaz\nbar\nbaz" | fsaed '/foo/ /bar/ do s/baz/bang'
+$ echo "baz\nfoo\nbaz\nbar\nbaz" | fsaed '/foo/ /bar/ do s/baz/bang/'
 ```
 
 Results in: 
