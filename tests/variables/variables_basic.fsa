@@ -1,0 +1,2 @@
+a: /{{ .beepvar }}/ -> b
+b: do "s/{{ .boopvar }}/{{ .buzzvar }}/"
