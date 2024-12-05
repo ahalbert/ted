@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"regexp"
-	"strconv"
 	"strings"
 	"text/template"
 
@@ -108,16 +107,25 @@ func (r *Runner) doTransition(newState string) {
 	r.didTransition = true
 }
 
+func (r *Runner) applyVariablesToString(input string) string {
+	var output bytes.Buffer
+	t := template.Must(template.New("").Parse(input))
+	t.Execute(&output, r.Variables)
+	return output.String()
+}
+
 func (r *Runner) doAction(action ast.Action) {
 	switch action.(type) {
-	case ast.RegexAction:
-		r.doRegexAction(action.(ast.RegexAction))
-	case ast.DoSedAction:
-		r.doSedAction(action.(ast.DoSedAction))
-	case ast.GotoAction:
-		r.doGotoAction(action.(ast.GotoAction))
-	case ast.PrintAction:
-		r.doPrintAction(action.(ast.PrintAction))
+	case *ast.ActionBlock:
+		r.doActionBlock(action.(*ast.ActionBlock))
+	case *ast.RegexAction:
+		r.doRegexAction(action.(*ast.RegexAction))
+	case *ast.DoSedAction:
+		r.doSedAction(action.(*ast.DoSedAction))
+	case *ast.GotoAction:
+		r.doGotoAction(action.(*ast.GotoAction))
+	case *ast.PrintAction:
+		r.doPrintAction(action.(*ast.PrintAction))
 	case nil:
 		r.doNoOp()
 	default:
@@ -125,7 +133,13 @@ func (r *Runner) doAction(action ast.Action) {
 	}
 }
 
-func (r *Runner) doRegexAction(action ast.RegexAction) {
+func (r *Runner) doActionBlock(block *ast.ActionBlock) {
+	for _, action := range block.Actions {
+		r.doAction(action)
+	}
+}
+
+func (r *Runner) doRegexAction(action *ast.RegexAction) {
 	rule := r.applyVariablesToString(action.Rule)
 	re, err := regexp.Compile(rule)
 	if err != nil {
@@ -136,14 +150,7 @@ func (r *Runner) doRegexAction(action ast.RegexAction) {
 	}
 }
 
-func (r *Runner) applyVariablesToString(input string) string {
-	var output bytes.Buffer
-	t := template.Must(template.New("").Parse(input))
-	t.Execute(&output, r.Variables)
-	return output.String()
-}
-
-func (r *Runner) doSedAction(action ast.DoSedAction) {
+func (r *Runner) doSedAction(action *ast.DoSedAction) {
 	command := r.applyVariablesToString(action.Command)
 	engine, err := sed.New(strings.NewReader(command))
 	if err != nil {
@@ -156,8 +163,8 @@ func (r *Runner) doSedAction(action ast.DoSedAction) {
 	}
 }
 
-func (r *Runner) doGotoAction(action ast.GotoAction) {
-	if action.Target == strconv.Itoa(r.parser.AnonymousStates) {
+func (r *Runner) doGotoAction(action *ast.GotoAction) {
+	if action.Target == "" {
 		r.CurrState = "0"
 	} else {
 		r.CurrState = action.Target
@@ -165,7 +172,7 @@ func (r *Runner) doGotoAction(action ast.GotoAction) {
 	r.didTransition = true
 }
 
-func (r *Runner) doPrintAction(action ast.PrintAction) {
+func (r *Runner) doPrintAction(action *ast.PrintAction) {
 	io.WriteString(os.Stdout, r.CurrLine+"\n")
 }
 

@@ -1,1 +1,1 @@
-/beep/ /boop/;/buzz/ -> 1 do s/cheater/nose/ ;/buzz/ -> 1
+/beep/ -> {/boop/ -> /buzz/ -> 1} {do s/cheater/nose/ /buzz/ -> 1}

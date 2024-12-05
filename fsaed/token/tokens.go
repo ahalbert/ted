@@ -17,14 +17,18 @@ const (
 	STRING = "STRING"
 
 	//symbols
+
 	COLON     = ":"
 	SEMICOLON = ";"
 	COMMA     = ","
 	GOTO      = "->"
-	LOOPBACK  = "-->"
+	RESET     = "-->"
+	LBRACE    = "{"
+	RBRACE    = "}"
 
 	//Keywords
 	DO    = "DO"
+	LABEL = "LABEL"
 	PRINT = "PRINT"
 	START = "START"
 	STOP  = "STOP"

@@ -2,8 +2,6 @@ package ast
 
 import (
 	"bytes"
-
-	"github.com/ahalbert/fsaed/fsaed/token"
 )
 
 // The base Node interface
@@ -38,16 +36,29 @@ func (fsa *FSA) String() string {
 }
 
 type StateStatement struct {
-	Token     token.Token // The first token in the statment
 	StateName string
 	Action    Action
 }
 
-func (ss *StateStatement) statementNode()       {}
-func (ss *StateStatement) TokenLiteral() string { return ss.Token.Literal }
+func (ss *StateStatement) statementNode() {}
 func (ss *StateStatement) String() string {
 	var out bytes.Buffer
 	out.WriteString(ss.StateName + ":" + ss.Action.String())
+	return out.String()
+}
+
+type ActionBlock struct {
+	Actions []Action
+}
+
+func (ab *ActionBlock) getNextAction() Action { return ab.Actions[0] }
+func (ab *ActionBlock) String() string {
+	var out bytes.Buffer
+	out.WriteString("{ ")
+	for _, action := range ab.Actions {
+		out.WriteString(action.String() + "; ")
+	}
+	out.WriteString(" }")
 	return out.String()
 }
 
@@ -56,10 +67,10 @@ type RegexAction struct {
 	Action Action
 }
 
-func (ra RegexAction) getNextAction() Action { return ra.Action }
-func (ra RegexAction) String() string {
+func (ra *RegexAction) getNextAction() Action { return ra.Action }
+func (ra *RegexAction) String() string {
 	var out bytes.Buffer
-	out.WriteString("/" + ra.Rule + "/ " + " :: " + ra.Action.String())
+	out.WriteString("/" + ra.Rule + "/ " + " :: " + (ra.Action).String())
 	return out.String()
 }
 
@@ -67,8 +78,8 @@ type GotoAction struct {
 	Target string
 }
 
-func (ga GotoAction) getNextAction() Action { return nil }
-func (ga GotoAction) String() string {
+func (ga *GotoAction) getNextAction() Action { return nil }
+func (ga *GotoAction) String() string {
 	var out bytes.Buffer
 	out.WriteString("goto: " + ga.Target)
 	return out.String()
@@ -78,8 +89,8 @@ type DoSedAction struct {
 	Command string
 }
 
-func (da DoSedAction) getNextAction() Action { return nil }
-func (da DoSedAction) String() string {
+func (da *DoSedAction) getNextAction() Action { return nil }
+func (da *DoSedAction) String() string {
 	var out bytes.Buffer
 	out.WriteString("sed " + da.Command)
 	return out.String()
@@ -88,8 +99,8 @@ func (da DoSedAction) String() string {
 type PrintAction struct {
 }
 
-func (pa PrintAction) getNextAction() Action { return nil }
-func (pa PrintAction) String() string {
+func (pa *PrintAction) getNextAction() Action { return nil }
+func (pa *PrintAction) String() string {
 	var out bytes.Buffer
 	out.WriteString("print")
 	return out.String()

@@ -48,11 +48,18 @@ func (l *Lexer) NextToken() token.Token {
 		tok = token.Token{Type: token.REGEX, Literal: l.readUntilChar('/')}
 	case '-':
 		l.readChar()
-		if l.ch == '>' {
+		if l.ch == '-' && l.peek(1) == ">" {
+			l.readChar()
+			tok = token.Token{Type: token.RESET, Literal: "-->"}
+		} else if l.ch == '>' {
 			tok = token.Token{Type: token.GOTO, Literal: "->"}
 		} else {
 			tok = newToken(token.ILLEGAL, l.ch)
 		}
+	case '{':
+		tok = token.Token{Type: token.LBRACE, Literal: "{"}
+	case '}':
+		tok = token.Token{Type: token.RBRACE, Literal: "}"}
 	case ':':
 		tok = token.Token{Type: token.COLON, Literal: ":"}
 	case ';':
@@ -65,20 +72,10 @@ func (l *Lexer) NextToken() token.Token {
 			tok.Type = token.LookupIdent(tok.Literal)
 			switch tok.Type {
 			case token.DO:
-				l.skipWhitespace()
-				switch l.ch {
-				case '"':
-					l.readChar()
-					tok.Literal = l.readUntilChar('"')
-				case '\'':
-					l.readChar()
-					tok.Literal = l.readUntilChar('\'')
-				case '`':
-					l.readChar()
-					tok.Literal = l.readUntilChar('`')
-				default:
-					tok.Literal = l.readUntilChar(' ', '\t', '\n', '\r')
-				}
+				tok.Literal = l.readDo()
+				l.readChar()
+			case token.IDENT:
+				tok = l.handleIdentfierSpecialCases(tok)
 			}
 			return tok
 		} else {
@@ -89,6 +86,31 @@ func (l *Lexer) NextToken() token.Token {
 	l.readChar()
 
 	return tok
+}
+
+func (l *Lexer) handleIdentfierSpecialCases(t token.Token) token.Token {
+	if l.ch == ':' {
+		l.readChar()
+		return token.Token{Type: token.LABEL, Literal: t.Literal}
+	}
+	return t
+}
+
+func (l *Lexer) readDo() string {
+	l.skipWhitespace()
+	switch l.ch {
+	case '"':
+		l.readChar()
+		return l.readUntilChar('"')
+	case '\'':
+		l.readChar()
+		return l.readUntilChar('\'')
+	case '`':
+		l.readChar()
+		return l.readUntilChar('`')
+	default:
+		return l.readUntilChar(' ', '\t', '\n', '\r')
+	}
 }
 
 func (l *Lexer) readIdentifier() string {
