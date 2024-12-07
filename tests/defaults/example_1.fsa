@@ -1,1 +1,1 @@
-/foo/ /bar/ do s/baz/bang/
+/foo/ -> /bar/ -> do s/baz/bang/

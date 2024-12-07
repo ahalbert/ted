@@ -1,0 +1,5 @@
+vendor
+bin
+.vimjectrc
+.vimspector.json
+program.fsa
