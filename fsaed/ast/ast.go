@@ -18,7 +18,6 @@ type Statement interface {
 // All expression nodes implement this
 type Action interface {
 	Node
-	getNextAction() Action
 }
 
 type FSA struct {
@@ -51,7 +50,6 @@ type ActionBlock struct {
 	Actions []Action
 }
 
-func (ab *ActionBlock) getNextAction() Action { return ab.Actions[0] }
 func (ab *ActionBlock) String() string {
 	var out bytes.Buffer
 	out.WriteString("{ ")
@@ -67,7 +65,6 @@ type RegexAction struct {
 	Action Action
 }
 
-func (ra *RegexAction) getNextAction() Action { return ra.Action }
 func (ra *RegexAction) String() string {
 	var out bytes.Buffer
 	out.WriteString("/" + ra.Rule + "/ " + " :: " + (ra.Action).String())
@@ -78,7 +75,6 @@ type GotoAction struct {
 	Target string
 }
 
-func (ga *GotoAction) getNextAction() Action { return nil }
 func (ga *GotoAction) String() string {
 	var out bytes.Buffer
 	out.WriteString("goto: " + ga.Target)
@@ -86,22 +82,54 @@ func (ga *GotoAction) String() string {
 }
 
 type DoSedAction struct {
-	Command string
+	Variable string
+	Command  string
 }
 
 func (da *DoSedAction) getNextAction() Action { return nil }
 func (da *DoSedAction) String() string {
 	var out bytes.Buffer
-	out.WriteString("sed " + da.Command)
+	out.WriteString("sed '" + da.Command + "' using var '" + da.Variable + "'")
 	return out.String()
 }
 
 type PrintAction struct {
+	Variable string
 }
 
-func (pa *PrintAction) getNextAction() Action { return nil }
 func (pa *PrintAction) String() string {
 	var out bytes.Buffer
-	out.WriteString("print")
+	out.WriteString("print '" + pa.Variable + "'")
+	return out.String()
+}
+
+type StartStopCaptureAction struct {
+	Command  string
+	Variable string
+}
+
+func (sscp *StartStopCaptureAction) String() string {
+	var out bytes.Buffer
+	out.WriteString(sscp.Command + " capture into:" + sscp.Variable)
+	return out.String()
+}
+
+type CaptureAction struct {
+	Variable string
+}
+
+func (ca *CaptureAction) String() string {
+	var out bytes.Buffer
+	out.WriteString("temp capture into:" + ca.Variable)
+	return out.String()
+}
+
+type ClearAction struct {
+	Variable string
+}
+
+func (ca *ClearAction) String() string {
+	var out bytes.Buffer
+	out.WriteString("clear:" + ca.Variable)
 	return out.String()
 }

@@ -27,18 +27,22 @@ const (
 	RBRACE    = "}"
 
 	//Keywords
-	DO    = "DO"
-	LABEL = "LABEL"
-	PRINT = "PRINT"
-	START = "START"
-	STOP  = "STOP"
+	DO      = "DO"
+	START   = "START"
+	STOP    = "STOP"
+	CAPTURE = "CAPTURE"
+	LABEL   = "LABEL"
+	PRINT   = "PRINT"
+	CLEAR   = "CLEAR"
 )
 
 var keywords = map[string]TokenType{
-	"do":    DO,
-	"print": PRINT,
-	"start": START,
-	"stop":  STOP,
+	"do":      DO,
+	"capture": CAPTURE,
+	"print":   PRINT,
+	"start":   START,
+	"stop":    STOP,
+	"clear":   CLEAR,
 }
 
 func LookupIdent(ident string) TokenType {

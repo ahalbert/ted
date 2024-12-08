@@ -1,0 +1,3 @@
+/beep/ ->
+/boop/ {capture ->} 
+/buzz/ {stop capture -> 1}
