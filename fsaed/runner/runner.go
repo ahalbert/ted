@@ -16,17 +16,16 @@ import (
 )
 
 type Runner struct {
-	States                         map[string]*State
-	Variables                      map[string]string
-	fsa                            ast.FSA
-	StartState                     string
-	CurrState                      string
-	DidTransition                  bool
-	DidStartCaptureOnUnderscoreVar bool
-	CaptureMode                    string
-	CaptureVar                     string
-	CurrLine                       string
-	parser                         *parser.Parser
+	States        map[string]*State
+	Variables     map[string]string
+	fsa           ast.FSA
+	StartState    string
+	CurrState     string
+	DidTransition bool
+	CaptureMode   string
+	CaptureVar    string
+	CurrLine      string
+	parser        *parser.Parser
 }
 
 type State struct {
@@ -99,7 +98,7 @@ func (r *Runner) RunFSA(input io.Reader) {
 	for scanner.Scan() {
 		r.CurrLine = scanner.Text()
 		r.clearAndSetVariable("$@", r.CurrLine+"\n")
-		if r.CaptureMode != "underscore" && !(r.CaptureVar == "$_" && r.CaptureMode == "capture") {
+		if !(r.CaptureVar == "$_" && r.CaptureMode == "capture") {
 			r.clearAndSetVariable("$_", r.CurrLine+"\n")
 		}
 		r.DidTransition = false
@@ -114,9 +113,7 @@ func (r *Runner) RunFSA(input io.Reader) {
 			}
 		}
 
-		if r.CaptureMode == "underscore" {
-			r.CaptureMode = "capture"
-		} else if r.CaptureMode == "capture" {
+		if r.CaptureMode == "capture" {
 			r.appendToVariable(r.CaptureVar, r.getVariable("$@"))
 		} else if r.CaptureMode == "temp" {
 			r.CaptureMode = "nocapture"
