@@ -16,14 +16,17 @@ import (
 )
 
 type Runner struct {
-	States        map[string]*State
-	Variables     map[string]string
-	fsa           ast.FSA
-	StartState    string
-	CurrState     string
-	didTransition bool
-	CurrLine      string
-	parser        *parser.Parser
+	States                         map[string]*State
+	Variables                      map[string]string
+	fsa                            ast.FSA
+	StartState                     string
+	CurrState                      string
+	DidTransition                  bool
+	DidStartCaptureOnUnderscoreVar bool
+	CaptureMode                    string
+	CaptureVar                     string
+	CurrLine                       string
+	parser                         *parser.Parser
 }
 
 type State struct {
@@ -35,6 +38,8 @@ func NewRunner(fsa ast.FSA, p *parser.Parser) *Runner {
 	r := &Runner{States: make(map[string]*State), Variables: make(map[string]string)}
 	r.parser = p
 	r.States["0"] = newState("0")
+	r.Variables["$_"] = ""
+
 	for _, varstring := range flags.Flags.Variables {
 		re, err := regexp.Compile("(.*?)=(.*)")
 		if err != nil {
@@ -47,6 +52,7 @@ func NewRunner(fsa ast.FSA, p *parser.Parser) *Runner {
 			panic("unparsable variable --var " + varstring)
 		}
 	}
+
 	for _, statement := range fsa.Statements {
 		switch statement.(type) {
 		case *ast.StateStatement:
@@ -80,31 +86,77 @@ func (s *State) addRule(action ast.Action) {
 }
 
 func (r *Runner) RunFSA(input io.Reader) {
+	if flags.Flags.NoPrint {
+		r.CaptureMode = "capture"
+		r.CaptureVar = "$NULL"
+	} else {
+		r.CaptureMode = "nocapture"
+	}
+
 	scanner := bufio.NewScanner(input)
 	scanner.Split(bufio.ScanLines)
 	r.CurrState = r.StartState
 	for scanner.Scan() {
 		r.CurrLine = scanner.Text()
-		r.didTransition = false
+		r.clearAndSetVariable("$@", r.CurrLine+"\n")
+		if r.CaptureMode != "underscore" && !(r.CaptureVar == "$_" && r.CaptureMode == "capture") {
+			r.clearAndSetVariable("$_", r.CurrLine+"\n")
+		}
+		r.DidTransition = false
 		state, ok := r.States[r.CurrState]
 		if !ok {
 			panic("missing state:" + r.CurrState)
 		}
 		for _, action := range state.Actions {
 			r.doAction(action)
-			if r.didTransition {
+			if r.DidTransition {
 				break
 			}
 		}
-		if !flags.Flags.NoPrint {
-			io.WriteString(os.Stdout, r.CurrLine+"\n")
+
+		if r.CaptureMode == "underscore" {
+			r.CaptureMode = "capture"
+		} else if r.CaptureMode == "capture" {
+			r.appendToVariable(r.CaptureVar, r.getVariable("$@"))
+		} else if r.CaptureMode == "temp" {
+			r.CaptureMode = "nocapture"
+		} else if !flags.Flags.NoPrint {
+			io.WriteString(os.Stdout, r.getVariable("$_"))
+			r.clearAndSetVariable("$_", "")
+		} else {
+			r.clearAndSetVariable("$_", "")
 		}
 	}
 }
 
+func (r *Runner) getVariable(key string) string {
+	val, ok := r.Variables[key]
+	if !ok {
+		panic("Attempted to reference non-existent variable " + key)
+	}
+	return val
+}
+
+func (r *Runner) appendToVariable(key string, apendee string) string {
+	if key == "$NULL" {
+		return ""
+	}
+	val, ok := r.Variables[key]
+	if !ok {
+		val = ""
+	}
+	val = val + apendee
+	r.Variables[key] = val
+	return val
+}
+
+func (r *Runner) clearAndSetVariable(key string, toset string) {
+	r.Variables[key] = toset
+}
+
 func (r *Runner) doTransition(newState string) {
 	r.CurrState = newState
-	r.didTransition = true
+	r.DidTransition = true
 }
 
 func (r *Runner) applyVariablesToString(input string) string {
@@ -126,6 +178,12 @@ func (r *Runner) doAction(action ast.Action) {
 		r.doGotoAction(action.(*ast.GotoAction))
 	case *ast.PrintAction:
 		r.doPrintAction(action.(*ast.PrintAction))
+	case *ast.StartStopCaptureAction:
+		r.doStartStopCapture(action.(*ast.StartStopCaptureAction))
+	case *ast.CaptureAction:
+		r.doCaptureAction(action.(*ast.CaptureAction))
+	case *ast.ClearAction:
+		r.doClearAction(action.(*ast.ClearAction))
 	case nil:
 		r.doNoOp()
 	default:
@@ -154,13 +212,13 @@ func (r *Runner) doSedAction(action *ast.DoSedAction) {
 	command := r.applyVariablesToString(action.Command)
 	engine, err := sed.New(strings.NewReader(command))
 	if err != nil {
-		panic("error building sed engine with command: " + action.Command + "\n formatted as: " + command)
+		panic("error building sed engine with command: '" + action.Command + "'\n formatted as: '" + command + "'")
 	}
-	r.CurrLine, err = engine.RunString(r.CurrLine)
-	r.CurrLine = strings.TrimSuffix(r.CurrLine, "\n")
+	result, err := engine.RunString(r.getVariable(action.Variable))
 	if err != nil {
 		panic("error running sed")
 	}
+	r.clearAndSetVariable(action.Variable, result)
 }
 
 func (r *Runner) doGotoAction(action *ast.GotoAction) {
@@ -169,11 +227,37 @@ func (r *Runner) doGotoAction(action *ast.GotoAction) {
 	} else {
 		r.CurrState = action.Target
 	}
-	r.didTransition = true
+	r.DidTransition = true
 }
 
 func (r *Runner) doPrintAction(action *ast.PrintAction) {
-	io.WriteString(os.Stdout, r.CurrLine+"\n")
+	io.WriteString(os.Stdout, r.getVariable(action.Variable))
+}
+
+func (r *Runner) doCaptureAction(action *ast.CaptureAction) {
+	r.appendToVariable(action.Variable, r.getVariable("$@"))
+	r.CaptureMode = "temp"
+}
+
+func (r *Runner) doStartStopCapture(action *ast.StartStopCaptureAction) {
+	if action.Command == "start" {
+		if action.Variable == "$_" {
+			r.clearAndSetVariable("$_", "")
+		}
+		r.CaptureMode = "capture"
+		r.CaptureVar = action.Variable
+	} else if action.Command == "stop" {
+		r.CaptureMode = "nocapture"
+	} else {
+		panic("unknown command: " + action.Command + " in start/stop action")
+	}
+}
+
+func (r *Runner) doClearAction(action *ast.ClearAction) {
+	if action.Variable == "$_" {
+		r.CaptureMode = "nocapture"
+	}
+	r.clearAndSetVariable(action.Variable, "")
 }
 
 func (r *Runner) doNoOp() {}

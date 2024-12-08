@@ -90,6 +90,12 @@ func (p *Parser) parseAction() ast.Action {
 		action = p.parseDoAction()
 	case token.PRINT:
 		action = p.parsePrintAction()
+	case token.START:
+		action = p.parseStartStopCaptureAction()
+	case token.STOP:
+		action = p.parseStartStopCaptureAction()
+	case token.CAPTURE:
+		action = p.parseCaptureAction()
 	default:
 		panic("parser error: expected action")
 	}
@@ -127,11 +133,46 @@ func (p *Parser) parseGotoAction() *ast.GotoAction {
 
 func (p *Parser) parseDoAction() *ast.DoSedAction {
 	action := &ast.DoSedAction{Command: p.curToken.Literal}
-	p.nextToken()
+	action.Variable = p.helpCheckForOptionalVarArg()
 	return action
 }
 
 func (p *Parser) parsePrintAction() *ast.PrintAction {
+	action := &ast.PrintAction{}
+	action.Variable = p.helpCheckForOptionalVarArg()
+	return action
+}
+
+func (p *Parser) parseClearAction() *ast.ClearAction {
+	action := &ast.ClearAction{}
+	action.Variable = p.helpCheckForOptionalVarArg()
+	return action
+}
+
+func (p *Parser) parseStartStopCaptureAction() *ast.StartStopCaptureAction {
+	action := &ast.StartStopCaptureAction{Command: p.curToken.Literal}
 	p.nextToken()
-	return &ast.PrintAction{}
+	if p.curTokenIs(token.CAPTURE) {
+		action.Variable = p.helpCheckForOptionalVarArg()
+	} else {
+		panic("parser error: expected keyword capture")
+	}
+	return action
+}
+
+func (p *Parser) helpCheckForOptionalVarArg() string {
+	p.nextToken()
+	if p.curTokenIs(token.IDENT) {
+		variable := p.curToken.Literal
+		p.nextToken()
+		return variable
+	} else {
+		return "$_"
+	}
+}
+
+func (p *Parser) parseCaptureAction() *ast.CaptureAction {
+	action := &ast.CaptureAction{}
+	action.Variable = p.helpCheckForOptionalVarArg()
+	return action
 }
