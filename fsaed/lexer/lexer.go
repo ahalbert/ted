@@ -46,6 +46,15 @@ func (l *Lexer) NextToken() token.Token {
 	case '/':
 		l.readChar()
 		tok = token.Token{Type: token.REGEX, Literal: l.readUntilChar('/')}
+	case '"':
+		l.readChar()
+		tok = token.Token{Type: token.STRING, Literal: l.readUntilChar('"')}
+	case '\'':
+		l.readChar()
+		tok = token.Token{Type: token.STRING, Literal: l.readUntilChar('\'')}
+	case '`':
+		l.readChar()
+		tok = token.Token{Type: token.STRING, Literal: l.readUntilChar('`')}
 	case '-':
 		l.readChar()
 		if l.ch == '-' && l.peek(1) == ">" {
@@ -56,6 +65,8 @@ func (l *Lexer) NextToken() token.Token {
 		} else {
 			tok = newToken(token.ILLEGAL, l.ch)
 		}
+	case '=':
+		tok = token.Token{Type: token.ASSIGN, Literal: "="}
 	case '{':
 		tok = token.Token{Type: token.LBRACE, Literal: "{"}
 	case '}':
@@ -136,7 +147,7 @@ func (l *Lexer) readUntilChar(chars ...byte) string {
 }
 
 func isLetter(ch byte) bool {
-	return 'a' <= ch && ch <= 'z' || 'A' <= ch && ch <= 'Z' || '0' <= ch && ch <= '9' || ch == '_'
+	return 'a' <= ch && ch <= 'z' || 'A' <= ch && ch <= 'Z' || '0' <= ch && ch <= '9' || ch == '_' || ch == '$'
 }
 
 func newToken(tokenType token.TokenType, ch byte) token.Token {

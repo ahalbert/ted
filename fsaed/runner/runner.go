@@ -16,16 +16,17 @@ import (
 )
 
 type Runner struct {
-	States        map[string]*State
-	Variables     map[string]string
-	fsa           ast.FSA
-	StartState    string
-	CurrState     string
-	DidTransition bool
-	CaptureMode   string
-	CaptureVar    string
-	CurrLine      string
-	parser        *parser.Parser
+	States                map[string]*State
+	Variables             map[string]string
+	fsa                   ast.FSA
+	StartState            string
+	CurrState             string
+	DidTransition         bool
+	DidResetUnderscoreVar bool
+	CaptureMode           string
+	CaptureVar            string
+	CurrLine              string
+	parser                *parser.Parser
 }
 
 type State struct {
@@ -100,6 +101,9 @@ func (r *Runner) RunFSA(input io.Reader) {
 		r.clearAndSetVariable("$@", r.CurrLine+"\n")
 		if !(r.CaptureVar == "$_" && r.CaptureMode == "capture") {
 			r.clearAndSetVariable("$_", r.CurrLine+"\n")
+			r.DidResetUnderscoreVar = true
+		} else {
+			r.DidResetUnderscoreVar = false
 		}
 		r.DidTransition = false
 		state, ok := r.States[r.CurrState]
@@ -181,6 +185,8 @@ func (r *Runner) doAction(action ast.Action) {
 		r.doCaptureAction(action.(*ast.CaptureAction))
 	case *ast.ClearAction:
 		r.doClearAction(action.(*ast.ClearAction))
+	case *ast.AssignAction:
+		r.doAssignAction(action.(*ast.AssignAction))
 	case nil:
 		r.doNoOp()
 	default:
@@ -232,6 +238,9 @@ func (r *Runner) doPrintAction(action *ast.PrintAction) {
 }
 
 func (r *Runner) doCaptureAction(action *ast.CaptureAction) {
+	if action.Variable == "$_" && r.DidResetUnderscoreVar {
+		r.clearAndSetVariable("$_", "")
+	}
 	r.appendToVariable(action.Variable, r.getVariable("$@"))
 	r.CaptureMode = "temp"
 }
@@ -255,6 +264,14 @@ func (r *Runner) doClearAction(action *ast.ClearAction) {
 		r.CaptureMode = "nocapture"
 	}
 	r.clearAndSetVariable(action.Variable, "")
+}
+
+func (r *Runner) doAssignAction(action *ast.AssignAction) {
+	if action.IsIdentifier {
+		r.Variables[action.Target] = r.getVariable(action.Value)
+	} else {
+		r.Variables[action.Target] = r.applyVariablesToString(action.Value)
+	}
 }
 
 func (r *Runner) doNoOp() {}

@@ -1,0 +1,3 @@
+/beep/ ->
+/boop/ {capture $_ myvar = $_ ->} 
+/buzz/ {print myvar}
