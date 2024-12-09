@@ -19,6 +19,7 @@ const (
 	//symbols
 
 	COLON     = ":"
+	ASSIGN    = "="
 	SEMICOLON = ";"
 	COMMA     = ","
 	GOTO      = "->"

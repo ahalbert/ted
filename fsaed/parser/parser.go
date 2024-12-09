@@ -96,6 +96,8 @@ func (p *Parser) parseAction() ast.Action {
 		action = p.parseStartStopCaptureAction()
 	case token.CAPTURE:
 		action = p.parseCaptureAction()
+	case token.IDENT:
+		action = p.parseAssignAction()
 	default:
 		panic("parser error: expected action")
 	}
@@ -174,5 +176,25 @@ func (p *Parser) helpCheckForOptionalVarArg() string {
 func (p *Parser) parseCaptureAction() *ast.CaptureAction {
 	action := &ast.CaptureAction{}
 	action.Variable = p.helpCheckForOptionalVarArg()
+	return action
+}
+
+func (p *Parser) parseAssignAction() *ast.AssignAction {
+	action := &ast.AssignAction{Target: p.curToken.Literal}
+	p.nextToken()
+	if p.curTokenIs(token.ASSIGN) {
+		p.nextToken()
+		action.Value = p.curToken.Literal
+		if p.curTokenIs(token.IDENT) {
+			action.IsIdentifier = true
+		} else if p.curTokenIs(token.STRING) {
+			action.IsIdentifier = false
+		} else {
+			panic("Expected identfier or string.")
+		}
+	} else {
+		panic("parser error: expected = ")
+	}
+	p.nextToken()
 	return action
 }

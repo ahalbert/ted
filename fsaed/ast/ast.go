@@ -133,3 +133,20 @@ func (ca *ClearAction) String() string {
 	out.WriteString("clear:" + ca.Variable)
 	return out.String()
 }
+
+type AssignAction struct {
+	Target       string
+	IsIdentifier bool
+	Value        string
+}
+
+func (aa *AssignAction) String() string {
+	var out bytes.Buffer
+	out.WriteString("set:" + aa.Target + "'= ")
+	if aa.IsIdentifier {
+		out.WriteString(aa.Value)
+	} else {
+		out.WriteString("'" + aa.Value + "'")
+	}
+	return out.String()
+}
