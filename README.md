@@ -1,6 +1,48 @@
 # fsaed: Finite State Autonoma EDitor
 A tool for editing files according to the rules of a provided Finite State Machine 
 
+## Motivation
+
+Once, I was presented with an the following file (example abridged) 
+
+```
+INFO:2024-12-07 13:01:40:Trace:198d079c-af9a-45b2-8236-7fbb2a012f69:Starting Procedure foo
+ERROR:2024-12-07 13:01:41:Trace:198d079c-af9a-45b2-8236-7fbb2a012f69:Error 1
+INFO:2024-12-07 13:01:41:Trace:198d079c-af9a-45b2-8236-7fbb2a012f69:Ending Procedure foo
+INFO:2024-12-07 13:01:41:Trace:198d079c-af9a-45b2-8236-7fbb2a012f69:Starting Procedure bar
+INFO:2024-12-07 13:01:41:Trace:198d079c-af9a-45b2-8236-7fbb2a012f69:Error 2
+INFO:2024-12-07 13:01:41:Trace:198d079c-af9a-45b2-8236-7fbb2a012f69:Success
+INFO:2024-12-07 13:01:42:Trace:198d079c-af9a-45b2-8236-7fbb2a012f69:Ending Procedure bar
+INFO:2024-12-07 13:01:42:Trace:30019fff-7645-4d07-9fc4-0bbb39aa09db:Starting Procedure foo
+INFO:2024-12-07 13:01:42:Trace:30019fff-7645-4d07-9fc4-0bbb39aa09db:Success
+INFO:2024-12-07 13:01:42:Trace:30019fff-7645-4d07-9fc4-0bbb39aa09db:Ending Procedure foo
+INFO:2024-12-07 13:01:43:Trace:30019fff-7645-4d07-9fc4-0bbb39aa09db:Starting Procedure bar
+ERROR:2024-12-07 13:01:43:Trace:30019fff-7645-4d07-9fc4-0bbb39aa09db:Error 3
+ERROR:2024-12-07 13:01:43:Trace:30019fff-7645-4d07-9fc4-0bbb39aa09db:Error 4
+INFO:2024-12-07 13:01:44:Trace:30019fff-7645-4d07-9fc4-0bbb39aa09db:Ending Procedure bar
+
+```
+
+I wanted only the errors that did not have a success in the procedure. In this case, we should only get Errors 1,3,4
+
+```
+ERROR:2024-12-07 13:01:41:Trace:198d079c-af9a-45b2-8236-7fbb2a012f69:Error 1
+ERROR:2024-12-07 13:01:43:Trace:30019fff-7645-4d07-9fc4-0bbb39aa09db:Error 3
+ERROR:2024-12-07 13:01:43:Trace:30019fff-7645-4d07-9fc4-0bbb39aa09db:Error 4 
+```
+
+
+I created an `awk` program to keep track of things and get the correct output. But I thought it was easier to express what I wanted as a state machine. Thus was born `fsaed`, a language for specifying state machines and using them to process files. 
+
+An equivalent `fsaed` program:
+
+```
+startstate: /Starting.Procedure/ -> capture_begin
+capture_begin: { start capture -> lookforsuccessorending /Success/ -> startstate}
+lookforsuccessorending: /Success/ { -> startstate }
+lookforsuccessorending: /Ending.Procedure/ { stop capture print -> startstate }
+
+```
 
 ## Examples
 
@@ -161,6 +203,35 @@ foo - CAPTURED
 bar - CAPTURED
 ```
 
+### Regex Capture Groups
+
+You can store capture groups in a variable and refer to them later.
+
+Given the input: 
+
+```
+beep
+boop
+i want these and those
+foo
+bar
+baz
+buzz
+```
+
+And this program with the `--no-print` option: 
+
+```
+/i.*want.(these).and.(those)/ ->
+{println $1 println $2 ->}
+```
+
+Yields:
+
+```
+these
+those
+```
 
 ## Syntax
 
@@ -227,3 +298,5 @@ Starts/Stops capturing to `variable`. When capturing is started, input lines are
 
 * `$_` The default variable used by arguments. At the beginning of an iteration, stores the current line in `$_` unless it is being used to capture. 
 * `$@` Contains the original line read in during the iteration.
+* `$0` Contains the matched text of the last regex compared.
+* `$1..$N` Contains the first to N capture groups in the last regex compared

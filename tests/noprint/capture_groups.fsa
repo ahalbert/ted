@@ -1,0 +1,2 @@
+/i.*want.(these).and.(those)/ ->
+{println $1 println $2 ->}

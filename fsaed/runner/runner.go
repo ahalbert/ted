@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"text/template"
 
@@ -179,6 +180,8 @@ func (r *Runner) doAction(action ast.Action) {
 		r.doGotoAction(action.(*ast.GotoAction))
 	case *ast.PrintAction:
 		r.doPrintAction(action.(*ast.PrintAction))
+	case *ast.PrintLnAction:
+		r.doPrintLnAction(action.(*ast.PrintLnAction))
 	case *ast.StartStopCaptureAction:
 		r.doStartStopCapture(action.(*ast.StartStopCaptureAction))
 	case *ast.CaptureAction:
@@ -206,7 +209,13 @@ func (r *Runner) doRegexAction(action *ast.RegexAction) {
 	if err != nil {
 		panic("regexp error, supplied: " + action.Rule + "\n formatted as: " + rule)
 	}
-	if re.MatchString(r.CurrLine) {
+
+	matches := re.FindStringSubmatch(r.getVariable("$@"))
+	if matches != nil {
+		for idx, match := range matches {
+			stridx := "$" + strconv.Itoa(idx)
+			r.clearAndSetVariable(stridx, match)
+		}
 		r.doAction(action.Action)
 	}
 }
@@ -235,6 +244,10 @@ func (r *Runner) doGotoAction(action *ast.GotoAction) {
 
 func (r *Runner) doPrintAction(action *ast.PrintAction) {
 	io.WriteString(os.Stdout, r.getVariable(action.Variable))
+}
+
+func (r *Runner) doPrintLnAction(action *ast.PrintLnAction) {
+	io.WriteString(os.Stdout, r.getVariable(action.Variable)+"\n")
 }
 
 func (r *Runner) doCaptureAction(action *ast.CaptureAction) {
