@@ -38,9 +38,17 @@ An equivalent `fsaed` program:
 
 ```
 startstate: /Starting.Procedure/ -> capture_begin
-capture_begin: { start capture -> lookforsuccessorending /Success/ -> startstate}
-lookforsuccessorending: /Success/ { -> startstate }
-lookforsuccessorending: /Ending.Procedure/ { stop capture print -> startstate }
+capture_begin: { 
+	start capture 
+	-> lookforsuccessorending 
+	/Success/ -> startstate
+}
+lookforsuccessorending: /Success/  -> startstate 
+lookforsuccessorending: /Ending.Procedure/ { 
+	stop capture 
+	print 
+	-> startstate 
+}
 
 ```
 
