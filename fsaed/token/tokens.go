@@ -33,7 +33,9 @@ const (
 	STOP    = "STOP"
 	CAPTURE = "CAPTURE"
 	LABEL   = "LABEL"
+	LET     = "LET"
 	PRINT   = "PRINT"
+	PRINTLN = "PRINTLN"
 	CLEAR   = "CLEAR"
 )
 
@@ -41,9 +43,11 @@ var keywords = map[string]TokenType{
 	"do":      DO,
 	"capture": CAPTURE,
 	"print":   PRINT,
+	"println": PRINTLN,
 	"start":   START,
 	"stop":    STOP,
 	"clear":   CLEAR,
+	"let":     LET,
 }
 
 func LookupIdent(ident string) TokenType {

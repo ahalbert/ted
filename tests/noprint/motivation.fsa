@@ -1,0 +1,4 @@
+startstate: /Starting.Procedure/ -> capturebegin
+capturebegin: { start capture -> lookforsuccessorending /Success/ -> startstate}
+lookforsuccessorending: /Success/ {stop capture -> startstate }
+lookforsuccessorending: /Ending.Procedure/ { stop capture print -> startstate }

@@ -103,6 +103,16 @@ func (pa *PrintAction) String() string {
 	return out.String()
 }
 
+type PrintLnAction struct {
+	Variable string
+}
+
+func (pa *PrintLnAction) String() string {
+	var out bytes.Buffer
+	out.WriteString("print '" + pa.Variable + "'")
+	return out.String()
+}
+
 type StartStopCaptureAction struct {
 	Command  string
 	Variable string

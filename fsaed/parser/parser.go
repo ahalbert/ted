@@ -90,13 +90,15 @@ func (p *Parser) parseAction() ast.Action {
 		action = p.parseDoAction()
 	case token.PRINT:
 		action = p.parsePrintAction()
+	case token.PRINTLN:
+		action = p.parsePrintLnAction()
 	case token.START:
 		action = p.parseStartStopCaptureAction()
 	case token.STOP:
 		action = p.parseStartStopCaptureAction()
 	case token.CAPTURE:
 		action = p.parseCaptureAction()
-	case token.IDENT:
+	case token.LET:
 		action = p.parseAssignAction()
 	default:
 		panic("parser error: expected action")
@@ -145,6 +147,12 @@ func (p *Parser) parsePrintAction() *ast.PrintAction {
 	return action
 }
 
+func (p *Parser) parsePrintLnAction() *ast.PrintLnAction {
+	action := &ast.PrintLnAction{}
+	action.Variable = p.helpCheckForOptionalVarArg()
+	return action
+}
+
 func (p *Parser) parseClearAction() *ast.ClearAction {
 	action := &ast.ClearAction{}
 	action.Variable = p.helpCheckForOptionalVarArg()
@@ -180,21 +188,29 @@ func (p *Parser) parseCaptureAction() *ast.CaptureAction {
 }
 
 func (p *Parser) parseAssignAction() *ast.AssignAction {
-	action := &ast.AssignAction{Target: p.curToken.Literal}
+	action := &ast.AssignAction{}
 	p.nextToken()
-	if p.curTokenIs(token.ASSIGN) {
-		p.nextToken()
-		action.Value = p.curToken.Literal
-		if p.curTokenIs(token.IDENT) {
-			action.IsIdentifier = true
-		} else if p.curTokenIs(token.STRING) {
-			action.IsIdentifier = false
-		} else {
-			panic("Expected identfier or string.")
-		}
+	if p.curTokenIs(token.IDENT) {
+		action.Target = p.curToken.Literal
 	} else {
-		panic("parser error: expected = ")
+		panic("parser error: expected identifier")
 	}
+
+	p.nextToken()
+	if !p.curTokenIs(token.ASSIGN) {
+		panic("parser error: expected =")
+	}
+
+	p.nextToken()
+	if p.curTokenIs(token.IDENT) {
+		action.IsIdentifier = true
+	} else if p.curTokenIs(token.STRING) {
+		action.IsIdentifier = false
+	} else {
+		panic("Expected identfier or string.")
+	}
+	action.Value = p.curToken.Literal
+
 	p.nextToken()
 	return action
 }
