@@ -160,3 +160,17 @@ func (aa *AssignAction) String() string {
 	}
 	return out.String()
 }
+
+type MoveHeadAction struct {
+	Command string
+	Regex   string
+}
+
+func (ha *MoveHeadAction) String() string {
+	var out bytes.Buffer
+	out.WriteString(ha.Command + " head")
+	if ha.Regex != "" {
+		out.WriteString(" to /" + ha.Regex + "/")
+	}
+	return out.String()
+}

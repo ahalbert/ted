@@ -1,8 +1,9 @@
 package runner
 
 import (
-	"bufio"
 	"bytes"
+	"errors"
+	"fmt"
 	"io"
 	"os"
 	"regexp"
@@ -19,15 +20,17 @@ import (
 type Runner struct {
 	States                map[string]*State
 	Variables             map[string]string
-	fsa                   ast.FSA
 	StartState            string
 	CurrState             string
 	DidTransition         bool
 	DidResetUnderscoreVar bool
 	CaptureMode           string
 	CaptureVar            string
-	CurrLine              string
-	parser                *parser.Parser
+	CurrLine              int
+	MaxLine               int
+	Tape                  io.ReadSeeker
+	TapeOffsets           map[int]int64
+	ShouldHalt            bool
 }
 
 type State struct {
@@ -36,10 +39,16 @@ type State struct {
 }
 
 func NewRunner(fsa ast.FSA, p *parser.Parser) *Runner {
-	r := &Runner{States: make(map[string]*State), Variables: make(map[string]string)}
-	r.parser = p
+	r := &Runner{
+		States:      make(map[string]*State),
+		Variables:   make(map[string]string),
+		TapeOffsets: make(map[int]int64),
+	}
 	r.States["0"] = newState("0")
 	r.Variables["$_"] = ""
+	r.CurrLine = -1
+	r.MaxLine = 0
+	r.TapeOffsets[0] = 0
 
 	for _, varstring := range flags.Flags.Variables {
 		re, err := regexp.Compile("(.*?)=(.*)")
@@ -86,7 +95,8 @@ func (s *State) addRule(action ast.Action) {
 	s.Actions = append(s.Actions, action)
 }
 
-func (r *Runner) RunFSA(input io.Reader) {
+func (r *Runner) RunFSA(input io.ReadSeeker) {
+	r.Tape = input
 	if flags.Flags.NoPrint {
 		r.CaptureMode = "capture"
 		r.CaptureVar = "$NULL"
@@ -94,41 +104,99 @@ func (r *Runner) RunFSA(input io.Reader) {
 		r.CaptureMode = "nocapture"
 	}
 
-	scanner := bufio.NewScanner(input)
-	scanner.Split(bufio.ScanLines)
 	r.CurrState = r.StartState
-	for scanner.Scan() {
-		r.CurrLine = scanner.Text()
-		r.clearAndSetVariable("$@", r.CurrLine+"\n")
+	for !r.ShouldHalt {
+		r.CurrLine++
+		line, err := r.getLine(r.CurrLine)
+		if err != nil && errors.Is(err, io.EOF) {
+			r.ShouldHalt = true
+			break
+		} else if err != nil {
+			panic(err)
+		}
+		r.clearAndSetVariable("$@", line)
+
 		if !(r.CaptureVar == "$_" && r.CaptureMode == "capture") {
-			r.clearAndSetVariable("$_", r.CurrLine+"\n")
+			r.clearAndSetVariable("$_", r.getVariable("$@"))
 			r.DidResetUnderscoreVar = true
 		} else {
 			r.DidResetUnderscoreVar = false
 		}
+
 		r.DidTransition = false
+
 		state, ok := r.States[r.CurrState]
 		if !ok {
 			panic("missing state:" + r.CurrState)
 		}
+
+		if r.ShouldHalt {
+			break
+		}
+
 		for _, action := range state.Actions {
-			r.doAction(action)
-			if r.DidTransition {
+			if r.DidTransition || r.ShouldHalt {
 				break
 			}
+			r.doAction(action)
+		}
+
+		if r.ShouldHalt {
+			break
 		}
 
 		if r.CaptureMode == "capture" {
-			r.appendToVariable(r.CaptureVar, r.getVariable("$@"))
+			r.appendToVariable(r.CaptureVar, r.getVariable("$@")+"\n")
 		} else if r.CaptureMode == "temp" {
 			r.CaptureMode = "nocapture"
 		} else if !flags.Flags.NoPrint {
-			io.WriteString(os.Stdout, r.getVariable("$_"))
+			io.WriteString(os.Stdout, r.getVariable("$_")+"\n")
 			r.clearAndSetVariable("$_", "")
 		} else {
 			r.clearAndSetVariable("$_", "")
 		}
 	}
+}
+
+func (r *Runner) getLine(line int) (string, error) {
+	if line < 0 {
+		return "", fmt.Errorf("line %d less than 0", line)
+	}
+	offset, ok := r.TapeOffsets[line]
+	if !ok {
+		linenum := r.MaxLine
+		offset, _ := r.TapeOffsets[linenum]
+		r.Tape.Seek(offset, 0)
+		for linenum < line {
+			_, err := r.readToNewline()
+			linenum++
+			if err != nil {
+				return "", err
+			}
+			offset, err = r.Tape.Seek(0, io.SeekCurrent)
+			if err != nil {
+				panic(err)
+			}
+			r.TapeOffsets[linenum] = offset
+			r.MaxLine = linenum
+		}
+	} else {
+		r.Tape.Seek(offset, 0)
+	}
+	return r.readToNewline()
+}
+
+func (r *Runner) readToNewline() (string, error) {
+	line := ""
+	bit := make([]byte, 1)
+	for ok := true; ok; ok = (bit[0] != '\n') {
+		line += string(bit[0])
+		_, err := r.Tape.Read(bit)
+		if err != nil {
+			return "", err
+		}
+	}
+	return line[1:], nil
 }
 
 func (r *Runner) getVariable(key string) string {
@@ -190,6 +258,8 @@ func (r *Runner) doAction(action ast.Action) {
 		r.doClearAction(action.(*ast.ClearAction))
 	case *ast.AssignAction:
 		r.doAssignAction(action.(*ast.AssignAction))
+	case *ast.MoveHeadAction:
+		r.doMoveHeadAction(action.(*ast.MoveHeadAction))
 	case nil:
 		r.doNoOp()
 	default:
@@ -230,7 +300,11 @@ func (r *Runner) doSedAction(action *ast.DoSedAction) {
 	if err != nil {
 		panic("error running sed")
 	}
-	r.clearAndSetVariable(action.Variable, result)
+	if action.Variable == "$_" && r.CaptureMode != "capture" {
+		r.clearAndSetVariable(action.Variable, result[:len(result)-1])
+	} else {
+		r.clearAndSetVariable(action.Variable, result)
+	}
 }
 
 func (r *Runner) doGotoAction(action *ast.GotoAction) {
@@ -285,6 +359,51 @@ func (r *Runner) doAssignAction(action *ast.AssignAction) {
 	} else {
 		r.Variables[action.Target] = r.applyVariablesToString(action.Value)
 	}
+}
+
+func (r *Runner) doMoveHeadAction(action *ast.MoveHeadAction) {
+	if action.Command == "fastforward" {
+		r.doFastForward(action.Regex)
+	} else if action.Command == "rewind" {
+		r.doRewind(action.Regex)
+	}
+}
+
+func (r *Runner) doFastForward(target string) {
+	rule := r.applyVariablesToString(target)
+	re, err := regexp.Compile(rule)
+	if err != nil {
+		panic(err)
+	}
+	line := ""
+	for ok := true; ok; ok = (!re.MatchString(line)) {
+		r.CurrLine++
+		line, err = r.getLine(r.CurrLine)
+		if err != nil && errors.Is(err, io.EOF) {
+			r.ShouldHalt = true
+			break
+		} else if err != nil {
+			panic(err)
+		}
+	}
+	r.CurrLine--
+}
+
+func (r *Runner) doRewind(target string) {
+	rule := r.applyVariablesToString(target)
+	re, err := regexp.Compile(rule)
+	if err != nil {
+		panic(err)
+	}
+	line := ""
+	for ok := true; ok; ok = (!re.MatchString(line) && r.CurrLine >= 0) {
+		r.CurrLine--
+		line, err = r.getLine(r.CurrLine)
+		if err != nil {
+			panic(err)
+		}
+	}
+	r.CurrLine--
 }
 
 func (r *Runner) doNoOp() {}
