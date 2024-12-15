@@ -10,9 +10,8 @@ for testfile in tests/**/*.fsa; do
   infile=$(echo $testfile | sed 's/.fsa$/.in/')
   outfile=$(echo $testfile | sed 's/.fsa$/.out/')
   flags=$(cat "$testfile:A:h/flags")
-  ./bin/fsaed -f "$testfile" $(echo $flags) "$infile" > ./bin/output
+  ./bin/ted -f "$testfile" $(echo $flags) "$infile" > ./bin/output
   if ! diff ./bin/output "$outfile" > /dev/null; then
     echo "ERROR: test $testname failed!"
-    exit
   fi
 done

@@ -11,9 +11,9 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/ahalbert/fsaed/fsaed/ast"
-	"github.com/ahalbert/fsaed/fsaed/flags"
-	"github.com/ahalbert/fsaed/fsaed/parser"
+	"github.com/ahalbert/ted/ted/ast"
+	"github.com/ahalbert/ted/ted/flags"
+	"github.com/ahalbert/ted/ted/parser"
 	"github.com/rwtodd/Go.Sed/sed"
 )
 

@@ -1,4 +1,4 @@
-module github.com/ahalbert/fsaed
+module github.com/ahalbert/ted
 
 go 1.22.2
 

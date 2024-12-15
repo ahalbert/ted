@@ -1,9 +1,8 @@
 
 build:
-	go build -o bin/fsaed cmd/main.go
+	go build -o bin/ted ted.go
 install:
-	go build -o bin/fsaed cmd/main.go
-	cp bin/fsaed $$(go env GOPATH)/bin
+	go install ted.go
 clean:
 	rm -rf bin
 	rm -rf program.fsa

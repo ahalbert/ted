@@ -5,11 +5,11 @@ import (
 	"io"
 	"os"
 
-	"github.com/ahalbert/fsaed/fsaed/flags"
-	"github.com/ahalbert/fsaed/fsaed/lexer"
-	"github.com/ahalbert/fsaed/fsaed/parser"
-	"github.com/ahalbert/fsaed/fsaed/runner"
-	"github.com/ahalbert/fsaed/fsaed/token"
+	"github.com/ahalbert/ted/ted/flags"
+	"github.com/ahalbert/ted/ted/lexer"
+	"github.com/ahalbert/ted/ted/parser"
+	"github.com/ahalbert/ted/ted/runner"
+	"github.com/ahalbert/ted/ted/token"
 	"github.com/alexflint/go-arg"
 )
 
