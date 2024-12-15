@@ -3,7 +3,7 @@ package lexer
 import (
 	"slices"
 
-	"github.com/ahalbert/fsaed/fsaed/token"
+	"github.com/ahalbert/ted/ted/token"
 )
 
 type Lexer struct {

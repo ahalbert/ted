@@ -3,9 +3,9 @@ package parser
 import (
 	"strconv"
 
-	"github.com/ahalbert/fsaed/fsaed/ast"
-	"github.com/ahalbert/fsaed/fsaed/lexer"
-	"github.com/ahalbert/fsaed/fsaed/token"
+	"github.com/ahalbert/ted/ted/ast"
+	"github.com/ahalbert/ted/ted/lexer"
+	"github.com/ahalbert/ted/ted/token"
 )
 
 type Parser struct {

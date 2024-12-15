@@ -1,9 +1,24 @@
-# fsaed: Finite State Autonoma EDitor
-A tool for editing files according to the rules of a provided Finite State Machine 
+<div align="center">
+
+<img src="./static/fsa.jpg" alt="KeyTik Icon">
+
+
+
+<h1> ted: Turing EDitor </h1>
+A tool for editing files according to the rules of a provided Turing Machine
+
+</div>
+
+
+* [Motivation](#motivation)
+* [Installing](#installing)
+* [Examples](#examples)
+* [Flags](#flags)
+* [Syntax](#syntax)
 
 ## Motivation
 
-Once, I was presented with an the following file (example abridged) 
+Once, I was presented with an the following file (abridged) 
 
 ```
 INFO:2024-12-07 13:01:40:Trace:198d079c-af9a-45b2-8236-7fbb2a012f69:Starting Procedure foo
@@ -32,9 +47,9 @@ ERROR:2024-12-07 13:01:43:Trace:30019fff-7645-4d07-9fc4-0bbb39aa09db:Error 4
 ```
 
 
-I created an `awk` program to keep track of things and get the correct output. But I thought it was easier to express what I wanted as a state machine. Thus was born `fsaed`, a language for specifying state machines and using them to process files. 
+I created an `awk` program to keep track of things and get the correct output. But I thought it was easier to express what I wanted as a state machine. Thus was born `ted`, a language for specifying state machines and using them to process files. 
 
-An equivalent `fsaed` program:
+An equivalent `ted` program:
 
 ```
 startstate: /Starting.Procedure/ -> capture_begin
@@ -50,6 +65,23 @@ lookforsuccessorending: /Ending.Procedure/ {
 	-> startstate 
 }
 
+```
+
+# Installing
+
+Requires go 1.22
+
+```
+git clone git@github.com:ahalbert/ted.git
+cd ted
+go install
+```
+
+You can build the code using
+
+```
+make build
+make test
 ```
 
 ## Examples
@@ -69,7 +101,7 @@ baz
 And you only want to edit the final `baz` into `bang`, use this command:
 
 ```
-$ echo "baz\nfoo\nbaz\nbar\nbaz" | fsaed '/foo/ -> /bar/ -> do s/baz/bang/'
+$ echo "baz\nfoo\nbaz\nbar\nbaz" | ted '/foo/ -> /bar/ -> do s/baz/bang/'
 ```
 
 Results in: 
@@ -98,7 +130,7 @@ DO NOT PRINT THIS LINE
 And you only want to print what's between the `baz`s
 
 ```
-$ fsaed -n 'stop:/baz/ -> start start:/baz/ -> 1 start: print' < file.txt
+$ ted -n 'stop:/baz/ -> start start:/baz/ -> 1 start: print' < file.txt
 ```
 
 Results in:
@@ -125,7 +157,7 @@ cheater
 And you want to modify `cheater` to `nose` only if you see a beep and buzz, but if there's a `buzz`, start looking for `/beep/` again
 
 ```
-$ fsaed '/beep/ -> {/boop/ -> /buzz/ -> 1} {do s/cheater/nose/ /buzz/ -> 1}' < file.txt
+$ ted '/beep/ -> {/boop/ -> /buzz/ -> 1} {do s/cheater/nose/ /buzz/ -> 1}' < file.txt
 ```
 
 Results In:
@@ -194,7 +226,7 @@ baz
 buzz
 ```
 
-And running this `fsaed` program with `--no-print` option:
+And running this `ted` program with `--no-print` option:
 
 ```
 /beep/ ->
@@ -241,9 +273,55 @@ these
 those
 ```
 
+### Rewind and Fast-Forward
+
+You can rewind or fast-forward the input file to any point matching `/regex/`
+
+Given the file:
+
+```
+beep
+boop
+buzz
+foo
+bar
+baz
+```
+
+#### Print everything after regex
+
+```
+{ capture fastforward /buzz/ -> }
+
+```
+
+#### Print a file twice
+
+```
+/baz/ { rewind /beep/ -> }
+```
+
+## Flags
+
+```
+Usage: ted [--fsa-file FSAFILE] [--no-print] [--debug] [--var key=value] [PROGRAM [INPUTFILE [INPUTFILE ...]]]
+
+Positional arguments:
+  PROGRAM                Program to run.
+  INPUTFILE              File to use as input.
+
+Options:
+  --fsa-file FSAFILE, -f FSAFILE
+                         Finite State Autonoma file to run.
+  --no-print, -n         Do not print lines by default.
+  --debug                Provides Lexer and Parser information.
+  --var key=value        Variable in the format name=value.
+  --help, -h             display this help and exit
+```
+
 ## Syntax
 
-fsaed consists of *states*, which contain *actions*. During each execution, `fsaed` will:
+ted consists of *states*, which contain *actions*. During each execution, `ted` will:
 
 1. Read a line from the input.
 2. Execute each action for that state in the order parsed
@@ -254,7 +332,7 @@ fsaed consists of *states*, which contain *actions*. During each execution, `fsa
 ### Statement
 
 ```
-[<statename>:] Action [, Action]
+[<statename>:] Action
 ```
 
 Binds the Action to the state `statename`. If a state is not specified, it is an *Anonymous State*, and assigned a name from 1..N, incrementing each time a new state is created. Multiple actions in a statement can be combined using `{ }`. If you want to specify multiple different rules for the same state, use `,`
@@ -264,11 +342,18 @@ Binds the Action to the state `statename`. If a state is not specified, it is an
 
 Various actions can be specified in a state:
 
+
+#### Assign Variable
+
+`let variable = expr`
+
+Assigns `variable` to `expr` 
+
 #### Do action on Regex
 
 `/<regex>/ Action`
 
-Perform `Action` if the current line matches regex.
+Perform `Action` if the current line matches regex. If capture groups are used, you may assign them to variables using `$0, $1, $2...` 
 
 #### Do Sed Action
 
@@ -287,7 +372,7 @@ Change current state to `statename`. If a state is not specified, assumes the ne
 
 `{ Action... }`
 
-Runs all the actions between the `{` and `}`. If state changes, stops executing block.
+Runs all the actions between the `{` and `}`.
 
 #### Print
 
@@ -295,12 +380,23 @@ Runs all the actions between the `{` and `}`. If state changes, stops executing 
 
 Prints `variable`. If a variable is not specified, uses `$_` which can be the current line or capture.
 
+`println [variable]`
+
+Prints `variable` with a newline. If a variable is not specified, uses `$_` which can be the current line or capture.
+
 
 #### Capture
 
 `[start|stop] capture [variable]`
 
 Starts/Stops capturing to `variable`. When capturing is started, input lines are redirected to . If variable is not specified, defaults to `$_`. If `start|stop` is not given, only captures the current line. 
+
+
+#### Move head 
+
+`rewind|fastforward /regex/`
+
+Moves the head backwards/forward to the first line matching `regex`. Stops if it hits the beginning, or halts if it hits the end of file. 
 
 ### Predefined Variables
 
