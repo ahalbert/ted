@@ -15,6 +15,7 @@ A tool for editing files according to the rules of a provided Turing Machine
 * [Examples](#examples)
 * [Flags](#flags)
 * [Syntax](#syntax)
+* [Contact](#contact)
 
 ## Motivation
 
@@ -404,3 +405,7 @@ Moves the head backwards/forward to the first line matching `regex`. Stops if it
 * `$@` Contains the original line read in during the iteration.
 * `$0` Contains the matched text of the last regex compared.
 * `$1..$N` Contains the first to N capture groups in the last regex compared
+
+## Contact 
+
+Feedback is always appreciated, you can contact me at armand (dot) halbert (at) gmail.com
