@@ -37,17 +37,25 @@ const (
 	PRINT   = "PRINT"
 	PRINTLN = "PRINTLN"
 	CLEAR   = "CLEAR"
+	REWIND  = "REWIND"
+	FASTFWD = "FASTFORWARD"
+	PAUSE   = "PAUSE"
+	PLAY    = "PLAY"
 )
 
 var keywords = map[string]TokenType{
-	"do":      DO,
-	"capture": CAPTURE,
-	"print":   PRINT,
-	"println": PRINTLN,
-	"start":   START,
-	"stop":    STOP,
-	"clear":   CLEAR,
-	"let":     LET,
+	"do":          DO,
+	"capture":     CAPTURE,
+	"print":       PRINT,
+	"println":     PRINTLN,
+	"start":       START,
+	"stop":        STOP,
+	"clear":       CLEAR,
+	"let":         LET,
+	"rewind":      REWIND,
+	"fastforward": FASTFWD,
+	"pause":       PAUSE,
+	"play":        PLAY,
 }
 
 func LookupIdent(ident string) TokenType {

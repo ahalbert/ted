@@ -100,6 +100,14 @@ func (p *Parser) parseAction() ast.Action {
 		action = p.parseCaptureAction()
 	case token.LET:
 		action = p.parseAssignAction()
+	case token.REWIND:
+		action = p.parseMoveHeadAction()
+	case token.FASTFWD:
+		action = p.parseMoveHeadAction()
+	case token.PAUSE:
+		action = p.parseAssignAction()
+	case token.PLAY:
+		action = p.parseAssignAction()
 	default:
 		panic("parser error: expected action")
 	}
@@ -212,5 +220,20 @@ func (p *Parser) parseAssignAction() *ast.AssignAction {
 	action.Value = p.curToken.Literal
 
 	p.nextToken()
+	return action
+}
+
+func (p *Parser) parseMoveHeadAction() *ast.MoveHeadAction {
+	t := p.curToken.Type
+	action := &ast.MoveHeadAction{Command: p.curToken.Literal}
+	p.nextToken()
+	if t == token.REWIND || t == token.FASTFWD {
+		if p.curTokenIs(token.REGEX) {
+			action.Regex = p.curToken.Literal
+			p.nextToken()
+		} else {
+			panic("expected regex with " + action.Command)
+		}
+	}
 	return action
 }
