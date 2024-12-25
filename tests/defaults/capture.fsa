@@ -1,5 +1,4 @@
-1: /beep/ ->
-2: {capture mycapture -> }
-3: do s/THIS.IS.CAPTURED/CAPTURED/ mycapture
-3: /buzz/ -> 
-4: print mycapture
+/beep/ ->
+{capture mycapture -> }
+do s/THIS.IS.CAPTURED/CAPTURED/ mycapture, /buzz/ -> 
+print mycapture

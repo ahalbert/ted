@@ -148,6 +148,16 @@ func (p *Parser) ParseFSA() ast.FSA {
 	for !p.curTokenIs(token.EOF) {
 		stmt := p.parseStatement()
 		program.Statements = append(program.Statements, stmt)
+		switch stmt.(type) {
+		case *ast.StateStatement:
+			statename := stmt.(*ast.StateStatement).StateName
+			for p.curTokenIs(token.COMMA) {
+				stmt := &ast.StateStatement{StateName: statename}
+				p.nextToken()
+				stmt.Action = p.parseAction()
+				program.Statements = append(program.Statements, stmt)
+			}
+		}
 	}
 
 	return program
