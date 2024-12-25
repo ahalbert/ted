@@ -1,1 +1,1 @@
-{ fastforward /buzz/ -> }
+{ capture fastforward /buzz/ -> }

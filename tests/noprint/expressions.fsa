@@ -1,0 +1,6 @@
+1: /target/ ->
+2: {let count = 4 rewind /div/ -> }
+3: {let count = count - 1 if count == 0  { -> } else { rewind /div/ } }
+4: { let count = 5 start capture myvar -> } 
+5: { println count /div/ let count = count - 1 if count == 0 -> }
+6: {print myvar ->}

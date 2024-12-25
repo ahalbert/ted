@@ -15,7 +15,6 @@ type Statement interface {
 	statementNode()
 }
 
-// All expression nodes implement this
 type Action interface {
 	Node
 }
@@ -43,6 +42,21 @@ func (ss *StateStatement) statementNode() {}
 func (ss *StateStatement) String() string {
 	var out bytes.Buffer
 	out.WriteString(ss.StateName + ":" + ss.Action.String())
+	return out.String()
+}
+
+type FunctionStatement struct {
+	Name     string
+	Function Expression
+}
+
+func (fs *FunctionStatement) statementNode() {}
+func (fs *FunctionStatement) String() string {
+	var out bytes.Buffer
+
+	out.WriteString("function " + fs.Name)
+	out.WriteString(fs.Function.String())
+
 	return out.String()
 }
 
@@ -145,19 +159,14 @@ func (ca *ClearAction) String() string {
 }
 
 type AssignAction struct {
-	Target       string
-	IsIdentifier bool
-	Value        string
+	Target     string
+	Expression Expression
 }
 
 func (aa *AssignAction) String() string {
 	var out bytes.Buffer
-	out.WriteString("set:" + aa.Target + "'= ")
-	if aa.IsIdentifier {
-		out.WriteString(aa.Value)
-	} else {
-		out.WriteString("'" + aa.Value + "'")
-	}
+	out.WriteString("set:'" + aa.Target + "'= ")
+	out.WriteString("'" + aa.Expression.String() + "'")
 	return out.String()
 }
 
@@ -172,5 +181,27 @@ func (ha *MoveHeadAction) String() string {
 	if ha.Regex != "" {
 		out.WriteString(" to /" + ha.Regex + "/")
 	}
+	return out.String()
+}
+
+type IfAction struct {
+	Condition   Expression
+	Consequence Action
+	Alternative Action
+}
+
+func (ia *IfAction) String() string {
+	var out bytes.Buffer
+
+	out.WriteString("if")
+	out.WriteString(ia.Condition.String())
+	out.WriteString(" ")
+	out.WriteString(ia.Consequence.String())
+
+	if ia.Alternative != nil {
+		out.WriteString("else ")
+		out.WriteString(ia.Alternative.String())
+	}
+
 	return out.String()
 }
