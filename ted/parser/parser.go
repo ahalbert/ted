@@ -256,13 +256,13 @@ func (p *Parser) parseDoAction() *ast.DoSedAction {
 
 func (p *Parser) parsePrintAction() *ast.PrintAction {
 	action := &ast.PrintAction{}
-	action.Variable = p.helpCheckForOptionalVarArg()
+	action.Expression = p.helpCheckForOptionalExpr()
 	return action
 }
 
 func (p *Parser) parsePrintLnAction() *ast.PrintLnAction {
 	action := &ast.PrintLnAction{}
-	action.Variable = p.helpCheckForOptionalVarArg()
+	action.Expression = p.helpCheckForOptionalExpr()
 	return action
 }
 
@@ -294,6 +294,16 @@ func (p *Parser) helpCheckForOptionalVarArg() string {
 	}
 }
 
+func (p *Parser) helpCheckForOptionalExpr() ast.Expression {
+	p.nextToken()
+	expr := p.parseExpression(LOWEST)
+	if expr != nil {
+		return expr
+	} else {
+		return &ast.Identifier{Value: "$_"}
+	}
+}
+
 func (p *Parser) parseCaptureAction() *ast.CaptureAction {
 	action := &ast.CaptureAction{}
 	action.Variable = p.helpCheckForOptionalVarArg()
@@ -317,7 +327,6 @@ func (p *Parser) parseAssignAction() *ast.AssignAction {
 
 	p.nextToken()
 	action.Expression = p.parseExpression(LOWEST)
-	p.nextToken()
 
 	return action
 }
@@ -327,7 +336,6 @@ func (p *Parser) parseIfAction() *ast.IfAction {
 	p.nextToken()
 	action.Condition = p.parseExpression(LOWEST)
 
-	p.nextToken()
 	action.Consequence = p.parseAction()
 
 	if p.curTokenIs(token.ELSE) {
@@ -359,12 +367,11 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 		return nil
 	}
 	leftExp := prefix()
-	for precedence < p.peekPrecedence() {
-		infix := p.infixParseFns[p.peekToken.Type]
+	for precedence < p.curPrecedence() {
+		infix := p.infixParseFns[p.curToken.Type]
 		if infix == nil {
 			return leftExp
 		}
-		p.nextToken()
 		leftExp = infix(leftExp)
 	}
 
@@ -372,6 +379,7 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 }
 
 func (p *Parser) parseIdentifierExpr() ast.Expression {
+	defer p.nextToken()
 	val, err := strconv.Atoi(p.curToken.Literal)
 	if err == nil {
 		return &ast.IntegerLiteral{Value: val}
