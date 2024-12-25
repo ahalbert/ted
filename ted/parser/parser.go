@@ -128,22 +128,27 @@ func (p *Parser) expectPeek(t token.TokenType) bool {
 	}
 }
 
+func (p *Parser) addError(msg string) {
+	m := fmt.Sprintf("parser error at line %d col %d: ", p.curToken.LineNum, p.curToken.Position) + msg
+	p.errors = append(p.errors, m)
+	p.nextToken()
+}
+
 func (p *Parser) peekError(t token.TokenType) {
 	msg := fmt.Sprintf("expected next token to be %s, got %s instead",
 		t, p.peekToken.Type)
-	panic(msg)
-	// p.errors = append(p.errors, msg)
+	p.addError(msg)
 }
 
 func (p *Parser) noPrefixParseFnError(t token.TokenType) {
 	msg := fmt.Sprintf("no prefix parse function for %s found", t)
-	panic(msg)
-	//p.errors = append(p.errors, msg)
+	p.addError(msg)
 }
 
-func (p *Parser) ParseFSA() ast.FSA {
+func (p *Parser) ParseFSA() (ast.FSA, []string) {
 	program := ast.FSA{}
 	program.Statements = []ast.Statement{}
+	p.errors = []string{}
 
 	for !p.curTokenIs(token.EOF) {
 		stmt := p.parseStatement()
@@ -160,7 +165,7 @@ func (p *Parser) ParseFSA() ast.FSA {
 		}
 	}
 
-	return program
+	return program, p.errors
 }
 
 func (p *Parser) parseStatement() ast.Statement {
@@ -183,7 +188,8 @@ func (p *Parser) parseFunctionStatement() *ast.FunctionStatement {
 	function := &ast.FunctionStatement{}
 	p.nextToken()
 	if !p.curTokenIs(token.IDENT) {
-		panic("expected function identifier")
+		p.addError("expected function identifier")
+		return nil
 	}
 	function.Name = p.curToken.Literal
 	p.nextToken()
@@ -225,7 +231,8 @@ func (p *Parser) parseAction() ast.Action {
 	case token.IF:
 		action = p.parseIfAction()
 	default:
-		panic("parser error: expected action")
+		p.addError(fmt.Sprintf("expected action, got %s %s", p.curToken.Type, p.curToken.Literal))
+		return nil
 	}
 	return action
 }
@@ -302,7 +309,8 @@ func (p *Parser) parseStartStopCaptureAction() *ast.StartStopCaptureAction {
 	if p.curTokenIs(token.CAPTURE) {
 		action.Variable = p.helpCheckForOptionalVarArg()
 	} else {
-		panic("parser error: expected keyword capture")
+		p.addError(fmt.Sprintf("expected keyword capture, got %s %s", p.curToken.Type, p.curToken.Literal))
+		return nil
 	}
 	return action
 }
@@ -341,12 +349,14 @@ func (p *Parser) parseAssignAction() *ast.AssignAction {
 		//TODO: Check is valid variable
 		action.Target = p.curToken.Literal
 	} else {
-		panic("parser error: expected identifier")
+		p.addError(fmt.Sprintf("expected variable, got %s %s", p.curToken.Type, p.curToken.Literal))
+		return nil
 	}
 
 	p.nextToken()
 	if !p.curTokenIs(token.ASSIGN) {
-		panic("parser error: expected =")
+		p.addError(fmt.Sprintf("expected =, got %s %s", p.curToken.Type, p.curToken.Literal))
+		return nil
 	}
 
 	p.nextToken()
@@ -378,7 +388,8 @@ func (p *Parser) parseMoveHeadAction() *ast.MoveHeadAction {
 			action.Regex = p.curToken.Literal
 			p.nextToken()
 		} else {
-			panic("expected regex with " + action.Command)
+			p.addError(fmt.Sprintf("%s expected regex, got %s %s", action.Command, p.curToken.Type, p.curToken.Literal))
+			return nil
 		}
 	}
 	return action
@@ -433,9 +444,11 @@ func (p *Parser) parsePrefixExpression() ast.Expression {
 func (p *Parser) parseGroupedExpression() ast.Expression {
 	p.nextToken()
 	exp := p.parseExpression(LOWEST)
-	if !p.expectPeek(token.RPAREN) {
+	if !p.curTokenIs(token.RPAREN) {
+		p.addError(fmt.Sprintf("expected ), got %s %s", p.curToken.Type, p.curToken.Literal))
 		return nil
 	}
+	p.nextToken()
 	return exp
 }
 
@@ -443,7 +456,8 @@ func (p *Parser) parseFunctionLiteral() ast.Expression {
 	lit := &ast.FunctionLiteral{}
 
 	if !p.curTokenIs(token.LPAREN) {
-		panic("expected (")
+		p.addError(fmt.Sprintf("expected (, got %s %s", p.curToken.Type, p.curToken.Literal))
+		return nil
 	}
 
 	lit.Parameters = p.parseFunctionParameters()

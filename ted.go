@@ -44,7 +44,13 @@ func main() {
 	l := lexer.New(program)
 	p := parser.New(l)
 
-	parsedFSA := p.ParseFSA()
+	parsedFSA, errors := p.ParseFSA()
+	if len(errors) > 0 {
+		for _, err := range errors {
+			fmt.Println(err)
+		}
+		os.Exit(1)
+	}
 
 	if flags.Flags.DebugMode {
 		io.WriteString(os.Stdout, parsedFSA.String())
