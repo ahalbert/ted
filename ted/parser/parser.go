@@ -196,6 +196,8 @@ func (p *Parser) parseAction() ast.Action {
 		action = p.parseGotoAction()
 	case token.DO:
 		action = p.parseDoAction()
+	case token.DOUNTIL:
+		action = p.parseDoUntilAction()
 	case token.PRINT:
 		action = p.parsePrintAction()
 	case token.PRINTLN:
@@ -251,6 +253,13 @@ func (p *Parser) parseGotoAction() *ast.GotoAction {
 func (p *Parser) parseDoAction() *ast.DoSedAction {
 	action := &ast.DoSedAction{Command: p.curToken.Literal}
 	action.Variable = p.helpCheckForOptionalVarArg()
+	return action
+}
+
+func (p *Parser) parseDoUntilAction() *ast.DoUntilSedAction {
+	action := &ast.DoUntilSedAction{Command: p.curToken.Literal}
+	action.Variable = p.helpCheckForOptionalVarArg()
+	action.Action = p.parseAction()
 	return action
 }
 

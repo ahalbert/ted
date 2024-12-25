@@ -100,10 +100,22 @@ type DoSedAction struct {
 	Command  string
 }
 
-func (da *DoSedAction) getNextAction() Action { return nil }
 func (da *DoSedAction) String() string {
 	var out bytes.Buffer
 	out.WriteString("sed '" + da.Command + "' using var '" + da.Variable + "'")
+	return out.String()
+}
+
+type DoUntilSedAction struct {
+	Variable string
+	Command  string
+	Action   Action
+}
+
+func (da *DoUntilSedAction) String() string {
+	var out bytes.Buffer
+	out.WriteString("sed '" + da.Command + "' using var '" + da.Variable + "'")
+	out.WriteString("if change then '" + da.Action.String())
 	return out.String()
 }
 

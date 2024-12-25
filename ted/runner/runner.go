@@ -301,6 +301,8 @@ func (r *Runner) doAction(action ast.Action) {
 		r.doRegexAction(action.(*ast.RegexAction))
 	case *ast.DoSedAction:
 		r.doSedAction(action.(*ast.DoSedAction))
+	case *ast.DoUntilSedAction:
+		r.doUntilSedAction(action.(*ast.DoUntilSedAction))
 	case *ast.GotoAction:
 		r.doGotoAction(action.(*ast.GotoAction))
 	case *ast.PrintAction:
@@ -363,6 +365,27 @@ func (r *Runner) doSedAction(action *ast.DoSedAction) {
 		r.clearAndSetVariable(action.Variable, result[:len(result)-1])
 	} else {
 		r.clearAndSetVariable(action.Variable, result)
+	}
+}
+
+func (r *Runner) doUntilSedAction(action *ast.DoUntilSedAction) {
+	command := r.applyVariablesToString(action.Command)
+	engine, err := sed.New(strings.NewReader(command))
+	if err != nil {
+		panic("error building sed engine with command: '" + action.Command + "'\n formatted as: '" + command + "'")
+	}
+	orig := r.getVariable(action.Variable)
+	result, err := engine.RunString(orig)
+	if err != nil {
+		panic("error running sed")
+	}
+	if action.Variable == "$_" && r.CaptureMode != "capture" {
+		result = result[:len(result)-1]
+		r.clearAndSetVariable(action.Variable, result[:len(result)-1])
+	}
+	r.clearAndSetVariable(action.Variable, result)
+	if orig != result {
+		r.doAction(action.Action)
 	}
 }
 
