@@ -46,16 +46,14 @@ type Parser struct {
 	prefixParseFns map[token.TokenType]prefixParseFn
 	infixParseFns  map[token.TokenType]infixParseFn
 
-	AnonymousStates                int
-	GOTOsThatNeedNextStateAssigned []*ast.GotoAction
+	AnonymousStates int
 }
 
 func New(l *lexer.Lexer) *Parser {
 	p := &Parser{
-		l:                              l,
-		errors:                         []string{},
-		AnonymousStates:                1,
-		GOTOsThatNeedNextStateAssigned: []*ast.GotoAction{},
+		l:               l,
+		errors:          []string{},
+		AnonymousStates: 1,
 	}
 
 	p.prefixParseFns = make(map[token.TokenType]prefixParseFn)
@@ -193,7 +191,7 @@ func (p *Parser) parseAction() ast.Action {
 	case token.GOTO:
 		action = p.parseGotoAction()
 	case token.RESET:
-		action = p.parseGotoAction()
+		action = p.parseResetAction()
 	case token.DO:
 		action = p.parseDoAction()
 	case token.DOUNTIL:
@@ -245,6 +243,13 @@ func (p *Parser) parseGotoAction() *ast.GotoAction {
 		p.nextToken()
 		action.Target = p.curToken.Literal
 	}
+
+	p.nextToken()
+	return action
+}
+
+func (p *Parser) parseResetAction() *ast.ResetAction {
+	action := &ast.ResetAction{}
 
 	p.nextToken()
 	return action

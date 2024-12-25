@@ -95,6 +95,15 @@ func (ga *GotoAction) String() string {
 	return out.String()
 }
 
+type ResetAction struct {
+}
+
+func (ra *ResetAction) String() string {
+	var out bytes.Buffer
+	out.WriteString("reset")
+	return out.String()
+}
+
 type DoSedAction struct {
 	Variable string
 	Command  string

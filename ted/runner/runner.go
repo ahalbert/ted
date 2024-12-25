@@ -314,6 +314,8 @@ func (r *Runner) doAction(action ast.Action) {
 		r.doUntilSedAction(action.(*ast.DoUntilSedAction))
 	case *ast.GotoAction:
 		r.doGotoAction(action.(*ast.GotoAction))
+	case *ast.ResetAction:
+		r.doResetAction(action.(*ast.ResetAction))
 	case *ast.PrintAction:
 		r.doPrintAction(action.(*ast.PrintAction))
 	case *ast.PrintLnAction:
@@ -408,6 +410,11 @@ func (r *Runner) doGotoAction(action *ast.GotoAction) {
 	} else {
 		r.CurrState = action.Target
 	}
+	r.DidTransition = true
+}
+
+func (r *Runner) doResetAction(action *ast.ResetAction) {
+	r.CurrState = r.StartState
 	r.DidTransition = true
 }
 
