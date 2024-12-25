@@ -108,22 +108,22 @@ func (da *DoSedAction) String() string {
 }
 
 type PrintAction struct {
-	Variable string
+	Expression Expression
 }
 
 func (pa *PrintAction) String() string {
 	var out bytes.Buffer
-	out.WriteString("print '" + pa.Variable + "'")
+	out.WriteString("print '" + pa.Expression.String() + "'")
 	return out.String()
 }
 
 type PrintLnAction struct {
-	Variable string
+	Expression Expression
 }
 
 func (pa *PrintLnAction) String() string {
 	var out bytes.Buffer
-	out.WriteString("print '" + pa.Variable + "'")
+	out.WriteString("println '" + pa.Expression.String() + "'")
 	return out.String()
 }
 

@@ -99,7 +99,7 @@ func getNextStateInList(statements []ast.Statement, idx int, currState string) s
 }
 
 func (r *Runner) processStateStatement(statement *ast.StateStatement, nextState string) {
-	if r.StartState == "" {
+	if r.StartState == "" && statement.StateName != "BEGIN" && statement.StateName != "END" {
 		r.StartState = statement.StateName
 	}
 	_, ok := r.States[statement.StateName]
@@ -146,13 +146,28 @@ func (r *Runner) RunFSA(input io.ReadSeeker) {
 		r.CaptureMode = "nocapture"
 	}
 
+	if r.StartState == "" {
+		r.StartState = "0"
+	}
 	r.CurrState = r.StartState
+	//Run BEGIN State - may have transitions so we should set CurrState before running any.
+	state, ok := r.States["BEGIN"]
+	if ok {
+		for _, action := range state.Actions {
+			if r.DidTransition {
+				break
+			}
+			r.doAction(action)
+		}
+	}
+
+	//Run FSA
 	for !r.ShouldHalt {
 		r.CurrLine++
 		line, err := r.getLine(r.CurrLine)
 		if err != nil && errors.Is(err, io.EOF) {
 			r.ShouldHalt = true
-			os.Exit(0)
+			break
 		} else if err != nil {
 			panic(err)
 		}
@@ -188,6 +203,14 @@ func (r *Runner) RunFSA(input io.ReadSeeker) {
 			r.clearAndSetVariable("$_", "")
 		} else {
 			r.clearAndSetVariable("$_", "")
+		}
+	}
+
+	//Run END state
+	state, ok = r.States["END"]
+	if ok {
+		for _, action := range state.Actions {
+			r.doAction(action)
 		}
 	}
 }
@@ -236,7 +259,7 @@ func (r *Runner) readToNewline() (string, error) {
 func (r *Runner) getVariable(key string) string {
 	val, ok := r.Variables[key]
 	if !ok {
-		panic("Attempted to reference non-existent variable " + key)
+		panic("Attempted to reference non-existent variable:" + key)
 	}
 	return val
 }
@@ -357,11 +380,39 @@ func (r *Runner) doGotoAction(action *ast.GotoAction) {
 }
 
 func (r *Runner) doPrintAction(action *ast.PrintAction) {
-	io.WriteString(os.Stdout, r.getVariable(action.Variable))
+	val := r.evaluateExpression(action.Expression)
+	switch val.(type) {
+	case *ast.StringLiteral:
+		io.WriteString(os.Stdout, val.(*ast.StringLiteral).Value)
+	case *ast.IntegerLiteral:
+		io.WriteString(os.Stdout, strconv.Itoa(val.(*ast.IntegerLiteral).Value))
+	case *ast.Boolean:
+		if val.(*ast.Boolean).Value {
+			io.WriteString(os.Stdout, "true")
+		} else {
+			io.WriteString(os.Stdout, "false")
+		}
+	default:
+		panic("cannot print type")
+	}
 }
 
 func (r *Runner) doPrintLnAction(action *ast.PrintLnAction) {
-	io.WriteString(os.Stdout, r.getVariable(action.Variable)+"\n")
+	val := r.evaluateExpression(action.Expression)
+	switch val.(type) {
+	case *ast.StringLiteral:
+		io.WriteString(os.Stdout, val.(*ast.StringLiteral).Value+"\n")
+	case *ast.IntegerLiteral:
+		io.WriteString(os.Stdout, strconv.Itoa(val.(*ast.IntegerLiteral).Value)+"\n")
+	case *ast.Boolean:
+		if val.(*ast.Boolean).Value {
+			io.WriteString(os.Stdout, "true"+"\n")
+		} else {
+			io.WriteString(os.Stdout, "false"+"\n")
+		}
+	default:
+		panic("cannot print type")
+	}
 }
 
 func (r *Runner) doCaptureAction(action *ast.CaptureAction) {
@@ -591,9 +642,10 @@ func (r *Runner) doFastForward(target string) {
 	for ok := true; ok; ok = (!re.MatchString(line)) {
 		r.CurrLine++
 		line, err = r.getLine(r.CurrLine)
+		r.clearAndSetVariable("$@", line)
 		if err != nil && errors.Is(err, io.EOF) {
 			r.ShouldHalt = true
-			os.Exit(0)
+			return
 		} else if err != nil {
 			panic(err)
 		}
