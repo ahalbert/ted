@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"text/template"
@@ -20,6 +21,7 @@ import (
 type Runner struct {
 	States                map[string]*State
 	Variables             map[string]string
+	Functions             map[string]*ast.FunctionLiteral
 	StartState            string
 	CurrState             string
 	DidTransition         bool
@@ -35,6 +37,7 @@ type Runner struct {
 
 type State struct {
 	StateName string
+	NextState string
 	Actions   []ast.Action
 }
 
@@ -42,6 +45,7 @@ func NewRunner(fsa ast.FSA, p *parser.Parser) *Runner {
 	r := &Runner{
 		States:      make(map[string]*State),
 		Variables:   make(map[string]string),
+		Functions:   make(map[string]*ast.FunctionLiteral),
 		TapeOffsets: make(map[int]int64),
 	}
 	r.States["0"] = newState("0")
@@ -63,31 +67,69 @@ func NewRunner(fsa ast.FSA, p *parser.Parser) *Runner {
 		}
 	}
 
-	for _, statement := range fsa.Statements {
+	for idx, statement := range fsa.Statements {
 		switch statement.(type) {
 		case *ast.StateStatement:
-			if r.StartState == "" {
-				r.StartState = statement.(*ast.StateStatement).StateName
-			}
-			r.processStateStatement(statement.(*ast.StateStatement))
+			r.processStateStatement(statement.(*ast.StateStatement), getNextStateInList(fsa.Statements, idx, statement.(*ast.StateStatement).StateName))
+		case *ast.FunctionStatement:
+			r.processFunctionStatement(statement.(*ast.FunctionStatement))
 		}
 	}
 	return r
 }
 
-func (r *Runner) processStateStatement(statement *ast.StateStatement) {
+func getNextStateInList(statements []ast.Statement, idx int, currState string) string {
+	if idx+1 >= len(statements) {
+		return "0"
+	}
+
+	found := false
+	for _, statement := range statements[idx:] {
+		switch statement.(type) {
+		case *ast.StateStatement:
+			stmt := statement.(*ast.StateStatement)
+			if stmt.StateName == currState {
+				found = true
+			} else if found {
+				return stmt.StateName
+			}
+		}
+	}
+	return "0"
+}
+
+func (r *Runner) processStateStatement(statement *ast.StateStatement, nextState string) {
+	if r.StartState == "" {
+		r.StartState = statement.StateName
+	}
 	_, ok := r.States[statement.StateName]
 	if !ok {
 		r.States[statement.StateName] = newState(statement.StateName)
 	}
 	state, _ := r.States[statement.StateName]
+
+	if state.NextState == "" {
+		state.NextState = nextState
+	}
 	state.addRule(statement.Action)
+
+}
+
+func (r *Runner) processFunctionStatement(statement *ast.FunctionStatement) {
+	switch statement.Function.(type) {
+	case *ast.FunctionLiteral:
+		fn := statement.Function.(*ast.FunctionLiteral)
+		r.Functions[statement.Name] = fn
+	default:
+		panic("non-function expr")
+	}
 
 }
 
 func newState(stateName string) *State {
 	return &State{StateName: stateName,
-		Actions: []ast.Action{},
+		Actions:   []ast.Action{},
+		NextState: "",
 	}
 }
 
@@ -110,7 +152,7 @@ func (r *Runner) RunFSA(input io.ReadSeeker) {
 		line, err := r.getLine(r.CurrLine)
 		if err != nil && errors.Is(err, io.EOF) {
 			r.ShouldHalt = true
-			break
+			os.Exit(0)
 		} else if err != nil {
 			panic(err)
 		}
@@ -130,19 +172,11 @@ func (r *Runner) RunFSA(input io.ReadSeeker) {
 			panic("missing state:" + r.CurrState)
 		}
 
-		if r.ShouldHalt {
-			break
-		}
-
 		for _, action := range state.Actions {
-			if r.DidTransition || r.ShouldHalt {
+			if r.DidTransition {
 				break
 			}
 			r.doAction(action)
-		}
-
-		if r.ShouldHalt {
-			break
 		}
 
 		if r.CaptureMode == "capture" {
@@ -260,6 +294,8 @@ func (r *Runner) doAction(action ast.Action) {
 		r.doAssignAction(action.(*ast.AssignAction))
 	case *ast.MoveHeadAction:
 		r.doMoveHeadAction(action.(*ast.MoveHeadAction))
+	case *ast.IfAction:
+		r.doIfAction(action.(*ast.IfAction))
 	case nil:
 		r.doNoOp()
 	default:
@@ -309,7 +345,11 @@ func (r *Runner) doSedAction(action *ast.DoSedAction) {
 
 func (r *Runner) doGotoAction(action *ast.GotoAction) {
 	if action.Target == "" {
-		r.CurrState = "0"
+		state, ok := r.States[r.CurrState]
+		if !ok {
+			panic(fmt.Sprintf("State %s not found", r.CurrState))
+		}
+		r.CurrState = state.NextState
 	} else {
 		r.CurrState = action.Target
 	}
@@ -354,11 +394,183 @@ func (r *Runner) doClearAction(action *ast.ClearAction) {
 }
 
 func (r *Runner) doAssignAction(action *ast.AssignAction) {
-	if action.IsIdentifier {
-		r.Variables[action.Target] = r.getVariable(action.Value)
-	} else {
-		r.Variables[action.Target] = r.applyVariablesToString(action.Value)
+	val := r.evaluateExpression(action.Expression).String() //TODO: check if this is safe
+	r.Variables[action.Target] = val
+}
+
+func (r *Runner) evaluateExpression(expression ast.Expression) ast.Expression {
+	switch expression.(type) {
+	case *ast.Boolean:
+		return expression
+	case *ast.IntegerLiteral:
+		return expression
+	case *ast.StringLiteral:
+		return expression
+	case *ast.Identifier:
+		return &ast.StringLiteral{Value: r.getVariable(expression.(*ast.Identifier).Value)}
+	case *ast.PrefixExpression:
+		return r.evaluatePrefixExpression(expression.(*ast.PrefixExpression))
+	case *ast.InfixExpression:
+		return r.evaluateInfixExpression(expression.(*ast.InfixExpression))
+	case *ast.CallExpression:
+		return r.evaluateCallExpression(expression.(*ast.CallExpression))
 	}
+	return nil
+}
+
+func (r *Runner) evaluatePrefixExpression(expression *ast.PrefixExpression) ast.Expression {
+	right := r.evaluateExpression(expression.Right)
+	switch expression.Operator {
+	case "!":
+		switch right.(type) {
+		case *ast.Boolean:
+			return &ast.Boolean{Value: !right.(*ast.Boolean).Value}
+		default:
+			panic("! operation expects boolean.")
+		}
+	case "-":
+		switch right.(type) {
+		case *ast.IntegerLiteral:
+			return &ast.IntegerLiteral{Value: -1 * right.(*ast.IntegerLiteral).Value}
+		default:
+			panic("- operation expects integer.")
+		}
+	}
+	return nil
+}
+
+func (r *Runner) evaluateInfixExpression(expression *ast.InfixExpression) ast.Expression {
+	left := r.evaluateExpression(expression.Left)
+	right := r.evaluateExpression(expression.Right)
+	if slices.Contains([]string{"+", "-", "*", "/"}, expression.Operator) {
+		return r.evaluateArithmetic(left, right, expression.Operator)
+
+	} else if slices.Contains([]string{">", "<", "!=", "=="}, expression.Operator) {
+		result, err := r.tryCompareInt(left, right, expression.Operator)
+		if err == nil {
+			return result
+		}
+		result, err = r.tryCompareBool(left, right, expression.Operator)
+		if err == nil {
+			return result
+		}
+		result, err = r.tryCompareString(left, right, expression.Operator)
+		if err == nil {
+			return result
+		}
+		panic("unable to make comparison")
+	}
+	return nil
+}
+
+func (r *Runner) evaluateArithmetic(left ast.Expression, right ast.Expression, op string) ast.Expression {
+	l_int, _ := r.convertToInt(left)
+	r_int, r_err := r.convertToInt(right)
+	switch op {
+	case "+":
+		return &ast.IntegerLiteral{Value: l_int + r_int}
+	case "-":
+		return &ast.IntegerLiteral{Value: l_int - r_int}
+	case "*":
+		return &ast.IntegerLiteral{Value: l_int * r_int}
+	case "/":
+		if r_err != nil {
+			return &ast.IntegerLiteral{Value: 0}
+		}
+		return &ast.IntegerLiteral{Value: l_int / r_int}
+	}
+	return nil
+}
+
+func (r *Runner) convertToInt(expression ast.Expression) (int, error) {
+	switch expression.(type) {
+	case *ast.StringLiteral:
+		val, err := strconv.Atoi(expression.(*ast.StringLiteral).Value)
+		if err != nil {
+			return 0, fmt.Errorf("type error expected int or string-like int")
+		}
+		return val, nil
+	case *ast.IntegerLiteral:
+		return expression.(*ast.IntegerLiteral).Value, nil
+	default:
+		return 0, fmt.Errorf("type error expected int or string-like int")
+	}
+}
+
+func (r *Runner) tryCompareInt(left ast.Expression, right ast.Expression, op string) (ast.Expression, error) {
+	l_int, l_err := r.convertToInt(left)
+	r_int, r_err := r.convertToInt(right)
+	if l_err != nil || r_err != nil {
+		return nil, fmt.Errorf("unable to convert to int")
+	}
+	switch op {
+	case ">":
+		return &ast.Boolean{Value: l_int > r_int}, nil
+	case "<":
+		return &ast.Boolean{Value: l_int < r_int}, nil
+	case "==":
+		return &ast.Boolean{Value: l_int == r_int}, nil
+	case "!=":
+		return &ast.Boolean{Value: l_int != r_int}, nil
+	}
+	return nil, fmt.Errorf("unknown operator")
+}
+
+func (r *Runner) convertToBool(expression ast.Expression) (bool, error) {
+	switch expression.(type) {
+	case *ast.StringLiteral:
+		val := expression.(*ast.StringLiteral).Value
+		if val == "true" {
+			return true, nil
+		}
+		if val == "false" {
+			return false, nil
+		}
+		return false, fmt.Errorf("unable to convert to bool.")
+	case *ast.Boolean:
+		return expression.(*ast.Boolean).Value, nil
+	default:
+		return false, fmt.Errorf("type error expected bool or string-like bool")
+	}
+}
+
+func (r *Runner) tryCompareBool(left ast.Expression, right ast.Expression, op string) (ast.Expression, error) {
+	lbool, l_err := r.convertToBool(left)
+	rbool, r_err := r.convertToBool(right)
+	if l_err != nil || r_err != nil {
+		return nil, fmt.Errorf("unable to convert to int")
+	}
+	switch op {
+	case ">":
+		return &ast.Boolean{Value: false}, fmt.Errorf("> not compatible with bool compare")
+	case "<":
+		return &ast.Boolean{Value: false}, fmt.Errorf("< not compatible with bool compare")
+	case "==":
+		return &ast.Boolean{Value: lbool == rbool}, nil
+	case "!=":
+		return &ast.Boolean{Value: lbool != rbool}, nil
+	}
+	return nil, fmt.Errorf("unknown operator")
+}
+
+func (r *Runner) tryCompareString(left ast.Expression, right ast.Expression, op string) (ast.Expression, error) {
+	leftStr := left.(*ast.StringLiteral).Value
+	rightStr := right.(*ast.StringLiteral).Value
+	switch op {
+	case ">":
+		return &ast.Boolean{Value: leftStr > rightStr}, nil
+	case "<":
+		return &ast.Boolean{Value: leftStr < rightStr}, nil
+	case "==":
+		return &ast.Boolean{Value: leftStr == rightStr}, nil
+	case "!=":
+		return &ast.Boolean{Value: leftStr != rightStr}, nil
+	}
+	return nil, fmt.Errorf("unknown operator")
+}
+
+func (r *Runner) evaluateCallExpression(expression *ast.CallExpression) ast.Expression {
+	return expression
 }
 
 func (r *Runner) doMoveHeadAction(action *ast.MoveHeadAction) {
@@ -381,7 +593,7 @@ func (r *Runner) doFastForward(target string) {
 		line, err = r.getLine(r.CurrLine)
 		if err != nil && errors.Is(err, io.EOF) {
 			r.ShouldHalt = true
-			break
+			os.Exit(0)
 		} else if err != nil {
 			panic(err)
 		}
@@ -404,6 +616,22 @@ func (r *Runner) doRewind(target string) {
 		}
 	}
 	r.CurrLine--
+}
+
+func (r *Runner) doIfAction(action *ast.IfAction) {
+	exprResult := false
+	result := r.evaluateExpression(action.Condition)
+	switch result.(type) {
+	case *ast.Boolean:
+		exprResult = result.(*ast.Boolean).Value
+	default:
+		panic("type error expected bool in if statement")
+	}
+	if exprResult {
+		r.doAction(action.Consequence)
+	} else if action.Alternative != nil {
+		r.doAction(action.Alternative)
+	}
 }
 
 func (r *Runner) doNoOp() {}

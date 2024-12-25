@@ -27,20 +27,39 @@ const (
 	LBRACE    = "{"
 	RBRACE    = "}"
 
+	PLUS     = "+"
+	MINUS    = "-"
+	BANG     = "!"
+	ASTERISK = "*"
+	SLASH    = "/"
+
+	LT = "<"
+	GT = ">"
+
+	EQ     = "=="
+	NOT_EQ = "!="
+
+	LPAREN = "("
+	RPAREN = ")"
+
 	//Keywords
-	DO      = "DO"
-	START   = "START"
-	STOP    = "STOP"
-	CAPTURE = "CAPTURE"
-	LABEL   = "LABEL"
-	LET     = "LET"
-	PRINT   = "PRINT"
-	PRINTLN = "PRINTLN"
-	CLEAR   = "CLEAR"
-	REWIND  = "REWIND"
-	FASTFWD = "FASTFORWARD"
-	PAUSE   = "PAUSE"
-	PLAY    = "PLAY"
+	DO       = "DO"
+	START    = "START"
+	STOP     = "STOP"
+	CAPTURE  = "CAPTURE"
+	LABEL    = "LABEL"
+	LET      = "LET"
+	PRINT    = "PRINT"
+	PRINTLN  = "PRINTLN"
+	CLEAR    = "CLEAR"
+	REWIND   = "REWIND"
+	FASTFWD  = "FASTFORWARD"
+	PAUSE    = "PAUSE"
+	PLAY     = "PLAY"
+	IF       = "IF"
+	ELSE     = "ELSE"
+	RETURN   = "RETURN"
+	FUNCTION = "FUNCTION"
 )
 
 var keywords = map[string]TokenType{
@@ -56,6 +75,10 @@ var keywords = map[string]TokenType{
 	"fastforward": FASTFWD,
 	"pause":       PAUSE,
 	"play":        PLAY,
+	"if":          IF,
+	"else":        ELSE,
+	"function":    FUNCTION,
+	"return":      RETURN,
 }
 
 func LookupIdent(ident string) TokenType {

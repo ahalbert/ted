@@ -45,7 +45,11 @@ func (l *Lexer) NextToken() token.Token {
 	switch l.ch {
 	case '/':
 		l.readChar()
-		tok = token.Token{Type: token.REGEX, Literal: l.readUntilChar('/')}
+		if l.ch == ' ' {
+			tok = token.Token{Type: token.SLASH, Literal: "/"}
+		} else {
+			tok = token.Token{Type: token.REGEX, Literal: l.readUntilChar('/')}
+		}
 	case '"':
 		l.readChar()
 		tok = token.Token{Type: token.STRING, Literal: l.readUntilChar('"')}
@@ -63,18 +67,33 @@ func (l *Lexer) NextToken() token.Token {
 		} else if l.ch == '>' {
 			tok = token.Token{Type: token.GOTO, Literal: "->"}
 		} else {
-			tok = newToken(token.ILLEGAL, l.ch)
+			tok = token.Token{Type: token.MINUS, Literal: "-"}
 		}
 	case '=':
-		tok = token.Token{Type: token.ASSIGN, Literal: "="}
+		if l.peek(1) == "=" {
+			l.readChar()
+			tok = token.Token{Type: token.EQ, Literal: "=="}
+		} else {
+			tok = token.Token{Type: token.ASSIGN, Literal: "="}
+		}
 	case '{':
 		tok = token.Token{Type: token.LBRACE, Literal: "{"}
 	case '}':
 		tok = token.Token{Type: token.RBRACE, Literal: "}"}
+	case '(':
+		tok = token.Token{Type: token.LPAREN, Literal: "("}
+	case ')':
+		tok = token.Token{Type: token.RPAREN, Literal: ")"}
+	case ',':
+		tok = token.Token{Type: token.COMMA, Literal: ","}
 	case ':':
 		tok = token.Token{Type: token.COLON, Literal: ":"}
 	case ';':
 		tok = token.Token{Type: token.SEMICOLON, Literal: ";"}
+	case '+':
+		tok = token.Token{Type: token.PLUS, Literal: "+"}
+	case '*':
+		tok = token.Token{Type: token.ASTERISK, Literal: "*"}
 	case 0:
 		tok = token.Token{Type: token.EOF, Literal: ""}
 	default:
