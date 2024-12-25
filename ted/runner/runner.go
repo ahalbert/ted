@@ -99,7 +99,7 @@ func getNextStateInList(statements []ast.Statement, idx int, currState string) s
 }
 
 func (r *Runner) processStateStatement(statement *ast.StateStatement, nextState string) {
-	if r.StartState == "" && statement.StateName != "BEGIN" && statement.StateName != "END" {
+	if r.StartState == "" && statement.StateName != "BEGIN" && statement.StateName != "END" && statement.StateName != "ALL" {
 		r.StartState = statement.StateName
 	}
 	_, ok := r.States[statement.StateName]
@@ -181,17 +181,26 @@ func (r *Runner) RunFSA(input io.ReadSeeker) {
 		}
 
 		r.DidTransition = false
-
 		state, ok := r.States[r.CurrState]
 		if !ok {
 			panic("missing state:" + r.CurrState)
 		}
-
 		for _, action := range state.Actions {
 			if r.DidTransition {
 				break
 			}
 			r.doAction(action)
+		}
+
+		r.DidTransition = false
+		state, ok = r.States["ALL"]
+		if ok {
+			for _, action := range state.Actions {
+				if r.DidTransition {
+					break
+				}
+				r.doAction(action)
+			}
 		}
 
 		if r.CaptureMode == "capture" {
