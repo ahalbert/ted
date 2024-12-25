@@ -44,6 +44,7 @@ const (
 
 	//Keywords
 	DO       = "DO"
+	DOUNTIL  = "DOUNTIL"
 	START    = "START"
 	STOP     = "STOP"
 	CAPTURE  = "CAPTURE"
@@ -64,6 +65,7 @@ const (
 
 var keywords = map[string]TokenType{
 	"do":          DO,
+	"dountil":     DOUNTIL,
 	"capture":     CAPTURE,
 	"print":       PRINT,
 	"println":     PRINTLN,

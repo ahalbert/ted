@@ -104,6 +104,9 @@ func (l *Lexer) NextToken() token.Token {
 			case token.DO:
 				tok.Literal = l.readDo()
 				l.readChar()
+			case token.DOUNTIL:
+				tok.Literal = l.readDo()
+				l.readChar()
 			case token.IDENT:
 				tok = l.handleIdentfierSpecialCases(tok)
 			}
