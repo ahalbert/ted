@@ -332,6 +332,8 @@ func (r *Runner) doAction(action ast.Action) {
 		r.doMoveHeadAction(action.(*ast.MoveHeadAction))
 	case *ast.IfAction:
 		r.doIfAction(action.(*ast.IfAction))
+	case *ast.ExpressionAction:
+		r.doExpressionAction(action.(*ast.ExpressionAction))
 	case nil:
 		r.doNoOp()
 	default:
@@ -660,7 +662,27 @@ func (r *Runner) tryCompareString(left ast.Expression, right ast.Expression, op 
 }
 
 func (r *Runner) evaluateCallExpression(expression *ast.CallExpression) ast.Expression {
+	switch expression.Function.(type) {
+	case *ast.Identifier:
+		r.lookupAndEvaluateFunction(expression)
+	case *ast.FunctionLiteral:
+		r.evaluateFunctionLiteral(expression)
+	}
 	return expression
+}
+
+func (r *Runner) lookupAndEvaluateFunction(expression *ast.CallExpression) {
+	fnName := expression.Function.(*ast.Identifier).Value
+	fn, ok := r.Functions[fnName]
+	if !ok {
+		panic("function not found!")
+	}
+	r.doAction(fn.Body)
+}
+
+func (r *Runner) evaluateFunctionLiteral(expression *ast.CallExpression) {
+	function := expression.Function.(*ast.FunctionLiteral)
+	r.doAction(function.Body)
 }
 
 func (r *Runner) doMoveHeadAction(action *ast.MoveHeadAction) {
@@ -723,6 +745,10 @@ func (r *Runner) doIfAction(action *ast.IfAction) {
 	} else if action.Alternative != nil {
 		r.doAction(action.Alternative)
 	}
+}
+
+func (r *Runner) doExpressionAction(action *ast.ExpressionAction) {
+	r.evaluateExpression(action.Expression)
 }
 
 func (r *Runner) doNoOp() {}

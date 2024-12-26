@@ -214,15 +214,23 @@ type IfAction struct {
 func (ia *IfAction) String() string {
 	var out bytes.Buffer
 
-	out.WriteString("if")
+	out.WriteString("if (")
 	out.WriteString(ia.Condition.String())
-	out.WriteString(" ")
+	out.WriteString(") then:")
 	out.WriteString(ia.Consequence.String())
 
 	if ia.Alternative != nil {
-		out.WriteString("else ")
+		out.WriteString("else:")
 		out.WriteString(ia.Alternative.String())
 	}
 
 	return out.String()
+}
+
+type ExpressionAction struct {
+	Expression Expression
+}
+
+func (ea *ExpressionAction) String() string {
+	return ea.Expression.String()
 }
