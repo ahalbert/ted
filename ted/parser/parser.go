@@ -231,8 +231,9 @@ func (p *Parser) parseAction() ast.Action {
 	case token.IF:
 		action = p.parseIfAction()
 	default:
-		p.addError(fmt.Sprintf("expected action, got %s %s", p.curToken.Type, p.curToken.Literal))
-		return nil
+		action = p.parseExpressionAction()
+		// p.addError(fmt.Sprintf("expected action, got %s %s", p.curToken.Type, p.curToken.Literal))
+		// return nil
 	}
 	return action
 }
@@ -522,6 +523,7 @@ func (p *Parser) parseCallArguments() []ast.Expression {
 
 	if p.peekTokenIs(token.RPAREN) {
 		p.nextToken()
+		p.nextToken()
 		return args
 	}
 
@@ -539,4 +541,10 @@ func (p *Parser) parseCallArguments() []ast.Expression {
 	}
 
 	return args
+}
+
+func (p *Parser) parseExpressionAction() *ast.ExpressionAction {
+	action := &ast.ExpressionAction{}
+	action.Expression = p.parseExpression(LOWEST)
+	return action
 }
