@@ -2,7 +2,6 @@ package runner
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -14,7 +13,7 @@ import (
 
 	"github.com/ahalbert/ted/ted/ast"
 	"github.com/ahalbert/ted/ted/flags"
-	"github.com/ahalbert/ted/ted/parser"
+	"github.com/edsrzf/mmap-go"
 	"github.com/rwtodd/Go.Sed/sed"
 )
 
@@ -28,10 +27,10 @@ type Runner struct {
 	DidResetUnderscoreVar bool
 	CaptureMode           string
 	CaptureVar            string
+	Seperator             string
 	CurrLine              int
 	MaxLine               int
-	Tape                  io.ReadSeeker
-	TapeOffsets           map[int]int64
+	Tape                  Tape
 	ShouldHalt            bool
 }
 
@@ -41,18 +40,16 @@ type State struct {
 	Actions   []ast.Action
 }
 
-func NewRunner(fsa ast.FSA, p *parser.Parser) *Runner {
+func NewRunner(fsa ast.FSA) *Runner {
 	r := &Runner{
-		States:      make(map[string]*State),
-		Variables:   make(map[string]string),
-		Functions:   make(map[string]*ast.FunctionLiteral),
-		TapeOffsets: make(map[int]int64),
+		States:    make(map[string]*State),
+		Variables: make(map[string]string),
+		Functions: make(map[string]*ast.FunctionLiteral),
 	}
 	r.States["0"] = newState("0")
 	r.Variables["$_"] = ""
 	r.CurrLine = -1
 	r.MaxLine = 0
-	r.TapeOffsets[0] = 0
 
 	for _, varstring := range flags.Flags.Variables {
 		re, err := regexp.Compile("(.*?)=(.*)")
@@ -137,8 +134,21 @@ func (s *State) addRule(action ast.Action) {
 	s.Actions = append(s.Actions, action)
 }
 
-func (r *Runner) RunFSA(input io.ReadSeeker) {
-	r.Tape = input
+func (r *Runner) RunFSAFromString(input string) {
+	r.Tape = NewStringTape(input)
+}
+
+func (r *Runner) RunFSAFromFile(file *os.File) {
+}
+
+func (r *Runner) RunFSA(file *os.File) {
+	mmap, err := mmap.Map(file, mmap.RDONLY, 0)
+	if err != nil {
+		panic("mmap error")
+	}
+	defer mmap.Unmap()
+	r.Tape = NewReversibleScanner(mmap)
+
 	if flags.Flags.NoPrint {
 		r.CaptureMode = "capture"
 		r.CaptureVar = "$NULL"
@@ -163,14 +173,11 @@ func (r *Runner) RunFSA(input io.ReadSeeker) {
 
 	//Run FSA
 	for !r.ShouldHalt {
-		r.CurrLine++
-		line, err := r.getLine(r.CurrLine)
-		if err != nil && errors.Is(err, io.EOF) {
+		if !r.Tape.Next() {
 			r.ShouldHalt = true
 			break
-		} else if err != nil {
-			panic(err)
 		}
+		line := r.Tape.Text()
 		r.clearAndSetVariable("$@", line)
 
 		if !(r.CaptureVar == "$_" && r.CaptureMode == "capture") {
@@ -222,47 +229,6 @@ func (r *Runner) RunFSA(input io.ReadSeeker) {
 			r.doAction(action)
 		}
 	}
-}
-
-func (r *Runner) getLine(line int) (string, error) {
-	if line < 0 {
-		return "", fmt.Errorf("line %d less than 0", line)
-	}
-	offset, ok := r.TapeOffsets[line]
-	if !ok {
-		linenum := r.MaxLine
-		offset, _ := r.TapeOffsets[linenum]
-		r.Tape.Seek(offset, 0)
-		for linenum < line {
-			_, err := r.readToNewline()
-			linenum++
-			if err != nil {
-				return "", err
-			}
-			offset, err = r.Tape.Seek(0, io.SeekCurrent)
-			if err != nil {
-				panic(err)
-			}
-			r.TapeOffsets[linenum] = offset
-			r.MaxLine = linenum
-		}
-	} else {
-		r.Tape.Seek(offset, 0)
-	}
-	return r.readToNewline()
-}
-
-func (r *Runner) readToNewline() (string, error) {
-	line := ""
-	bit := make([]byte, 1)
-	for ok := true; ok; ok = (bit[0] != '\n') {
-		line += string(bit[0])
-		_, err := r.Tape.Read(bit)
-		if err != nil {
-			return "", err
-		}
-	}
-	return line[1:], nil
 }
 
 func (r *Runner) getVariable(key string) string {
@@ -701,17 +667,14 @@ func (r *Runner) doFastForward(target string) {
 	}
 	line := ""
 	for ok := true; ok; ok = (!re.MatchString(line)) {
-		r.CurrLine++
-		line, err = r.getLine(r.CurrLine)
-		r.clearAndSetVariable("$@", line)
-		if err != nil && errors.Is(err, io.EOF) {
+		if !r.Tape.Next() {
 			r.ShouldHalt = true
 			return
-		} else if err != nil {
-			panic(err)
 		}
+		line = r.Tape.Text()
+		r.clearAndSetVariable("$@", line)
 	}
-	r.CurrLine--
+	r.Tape.Prev()
 }
 
 func (r *Runner) doRewind(target string) {
@@ -721,14 +684,13 @@ func (r *Runner) doRewind(target string) {
 		panic(err)
 	}
 	line := ""
-	for ok := true; ok; ok = (!re.MatchString(line) && r.CurrLine >= 0) {
-		r.CurrLine--
-		line, err = r.getLine(r.CurrLine)
-		if err != nil {
-			panic(err)
+	for ok := true; ok; ok = (!re.MatchString(line)) {
+		if !r.Tape.Prev() {
+			return
 		}
+		line = r.Tape.Text()
 	}
-	r.CurrLine--
+	r.Tape.Prev()
 }
 
 func (r *Runner) doIfAction(action *ast.IfAction) {
