@@ -117,12 +117,12 @@ func (s *State) addRule(action ast.Action) {
 	s.Actions = append(s.Actions, action)
 }
 
-func (r *Runner) RunFSAFromString(input string, out *os.File) {
+func (r *Runner) RunFSAFromString(input string, out io.Writer) {
 	r.Tape = NewStringTape(input)
 	r.RunFSA(out)
 }
 
-func (r *Runner) RunFSAFromFile(in *os.File, out *os.File) {
+func (r *Runner) RunFSAFromFile(in *os.File, out io.Writer) {
 	mmap, err := mmap.Map(in, mmap.RDONLY, 0)
 	if err != nil {
 		panic("mmap error")
