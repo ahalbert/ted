@@ -56,7 +56,7 @@ func main() {
 		io.WriteString(os.Stdout, parsedFSA.String())
 	}
 
-	r := runner.NewRunner(parsedFSA, p)
+	r := runner.NewRunner(parsedFSA)
 	if len(flags.Flags.InputFiles) > 0 {
 		for _, infile := range flags.Flags.InputFiles {
 			reader, err := os.Open(infile)
