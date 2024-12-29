@@ -47,6 +47,15 @@ func NewRunner(fsa ast.FSA, vars map[string]string) *Runner {
 	r.States["0"] = newState("0")
 	r.Variables["$_"] = ""
 
+	_, ok := r.Variables["$RS"]
+	if !ok {
+		r.Variables["$RS"] = "\n"
+	}
+	_, ok = r.Variables["$PRINTMODE"]
+	if !ok {
+		r.Variables["$PRINTMODE"] = "print"
+	}
+
 	for idx, statement := range fsa.Statements {
 		switch statement.(type) {
 		case *ast.StateStatement:
