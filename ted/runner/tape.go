@@ -31,8 +31,8 @@ type StringTape struct {
 
 func NewStringTape(in string) *StringTape {
 	return &StringTape{input: in,
-		offset:    0,
-		maxOffset: 0,
+		offset:    -1,
+		maxOffset: -1,
 		seperator: "\n",
 		groups:    strings.Split(in, "\n"),
 	}
@@ -67,7 +67,7 @@ func (ss *StringTape) Next() bool {
 func (ss *StringTape) Scan() bool {
 	ss.maxOffset++
 	ss.offset = ss.maxOffset
-	if ss.offset == len(ss.groups) {
+	if ss.offset >= len(ss.groups) {
 		return false
 	}
 	return true
