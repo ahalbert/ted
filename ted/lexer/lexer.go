@@ -158,14 +158,17 @@ func (l *Lexer) readDo() string {
 
 func (l *Lexer) readIdentifier() string {
 	position := l.position
-	for isLetter(l.ch) {
+	for isLetter(l.ch) && l.ch != 0 {
 		l.readChar()
 	}
 	return l.input[position:l.position]
 }
 
 func (l *Lexer) skipWhitespace() {
-	for l.ch == ' ' || l.ch == '\t' || l.ch == '\n' || l.ch == '\r' {
+	for l.ch == '#' || l.ch == ' ' || l.ch == '\t' || l.ch == '\n' || l.ch == '\r' {
+		if l.ch == '#' {
+			l.readUntilChar('\n')
+		}
 		l.readChar()
 	}
 }
