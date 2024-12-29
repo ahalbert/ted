@@ -29,6 +29,7 @@ type Runner struct {
 	Tape                  Tape
 	OutputTape            io.Writer
 	ShouldHalt            bool
+	DidFatalError         bool
 }
 
 type State struct {
@@ -132,6 +133,7 @@ func (r *Runner) RunFSAFromFile(in *os.File, out *os.File) {
 }
 
 func (r *Runner) RunFSA(output io.Writer) {
+	r.DidFatalError = false
 	r.OutputTape = output
 
 	if r.StartState == "" {
@@ -180,7 +182,7 @@ func (r *Runner) RunFSA(output io.Writer) {
 			panic("missing state:" + r.CurrState)
 		}
 		for _, action := range state.Actions {
-			if r.DidTransition {
+			if r.DidTransition || r.ShouldHalt {
 				break
 			}
 			r.doAction(action)
@@ -190,7 +192,7 @@ func (r *Runner) RunFSA(output io.Writer) {
 		state, ok = r.States["ALL"]
 		if ok {
 			for _, action := range state.Actions {
-				if r.DidTransition {
+				if r.DidTransition || r.ShouldHalt {
 					break
 				}
 				r.doAction(action)
@@ -210,9 +212,13 @@ func (r *Runner) RunFSA(output io.Writer) {
 	}
 
 	//Run END state
-	state, ok = r.States["END"]
-	if ok {
+	r.CurrState = "END"
+	state, ok = r.States[r.CurrState]
+	if ok && !r.DidFatalError {
 		for _, action := range state.Actions {
+			if r.DidFatalError {
+				break
+			}
 			r.doAction(action)
 		}
 	}
@@ -221,7 +227,8 @@ func (r *Runner) RunFSA(output io.Writer) {
 func (r *Runner) getVariable(key string) string {
 	val, ok := r.Variables[key]
 	if !ok {
-		panic("Attempted to reference non-existent variable:" + key)
+		r.fatalError("Attempted to reference non-existent variable:"+key, nil)
+		return ""
 	}
 	return val
 }
@@ -290,12 +297,15 @@ func (r *Runner) doAction(action ast.Action) {
 	case nil:
 		r.doNoOp()
 	default:
-		panic("Unknown Action!")
+		r.fatalError("Unknown Action!", action)
 	}
 }
 
 func (r *Runner) doActionBlock(block *ast.ActionBlock) {
 	for _, action := range block.Actions {
+		if r.ShouldHalt && r.CurrState != "END" {
+			break
+		}
 		r.doAction(action)
 	}
 }
@@ -304,7 +314,8 @@ func (r *Runner) doRegexAction(action *ast.RegexAction) {
 	rule := r.applyVariablesToString(action.Rule)
 	re, err := regexp.Compile(rule)
 	if err != nil {
-		panic("regexp error, supplied: " + action.Rule + "\n formatted as: " + rule)
+		r.fatalError("regexp error, supplied: "+action.Rule+"\n formatted as: "+rule, action)
+		return
 	}
 
 	matches := re.FindStringSubmatch(r.getVariable("$@"))
@@ -321,11 +332,13 @@ func (r *Runner) doSedAction(action *ast.DoSedAction) {
 	command := r.applyVariablesToString(action.Command)
 	engine, err := sed.New(strings.NewReader(command))
 	if err != nil {
-		panic("error building sed engine with command: '" + action.Command + "'\n formatted as: '" + command + "'")
+		r.fatalError("error building sed engine with command: '"+action.Command+"'\n formatted as: '"+command+"'", action)
+		return
 	}
 	result, err := engine.RunString(r.getVariable(action.Variable))
 	if err != nil {
-		panic("error running sed")
+		r.fatalError(fmt.Errorf("error running sed: %w", err).Error(), action)
+		return
 	}
 	result = result[:len(result)-1]
 	if action.Variable == "$_" && r.CaptureMode != "capture" {
@@ -339,12 +352,14 @@ func (r *Runner) doUntilSedAction(action *ast.DoUntilSedAction) {
 	command := r.applyVariablesToString(action.Command)
 	engine, err := sed.New(strings.NewReader(command))
 	if err != nil {
-		panic("error building sed engine with command: '" + action.Command + "'\n formatted as: '" + command + "'")
+		r.fatalError("error building sed engine with command: '"+action.Command+"'\n formatted as: '"+command+"'", action)
+		return
 	}
 	orig := r.getVariable(action.Variable)
 	result, err := engine.RunString(orig)
 	if err != nil {
-		panic("error running sed")
+		r.fatalError(fmt.Errorf("error running sed: %w", err).Error(), action)
+		return
 	}
 	result = result[:len(result)-1]
 	if action.Variable == "$_" && r.CaptureMode != "capture" {
@@ -361,7 +376,7 @@ func (r *Runner) doGotoAction(action *ast.GotoAction) {
 	if action.Target == "" {
 		state, ok := r.States[r.CurrState]
 		if !ok {
-			panic(fmt.Sprintf("State %s not found", r.CurrState))
+			r.fatalError(fmt.Sprintf("State %s not found", r.CurrState), action)
 		}
 		r.CurrState = state.NextState
 	} else {
@@ -389,7 +404,8 @@ func (r *Runner) doPrintAction(action *ast.PrintAction) {
 			io.WriteString(r.OutputTape, "false")
 		}
 	default:
-		panic("cannot print type")
+		r.fatalError(fmt.Sprintf("cannot print type %v", val), action)
+		return
 	}
 }
 
@@ -407,7 +423,7 @@ func (r *Runner) doPrintLnAction(action *ast.PrintLnAction) {
 			io.WriteString(r.OutputTape, "false"+"\n")
 		}
 	default:
-		panic("cannot print type")
+		r.fatalError(fmt.Sprintf("cannot print type %v", val), action)
 	}
 }
 
@@ -429,7 +445,8 @@ func (r *Runner) doStartStopCapture(action *ast.StartStopCaptureAction) {
 	} else if action.Command == "stop" {
 		r.CaptureMode = "nocapture"
 	} else {
-		panic("unknown command: " + action.Command + " in start/stop action")
+		r.fatalError("unknown command: "+action.Command+" in start/stop action", action)
+		return
 	}
 }
 
@@ -473,14 +490,14 @@ func (r *Runner) evaluatePrefixExpression(expression *ast.PrefixExpression) ast.
 		case *ast.Boolean:
 			return &ast.Boolean{Value: !right.(*ast.Boolean).Value}
 		default:
-			panic("! operation expects boolean.")
+			r.fatalError("! operation expects boolean.", &ast.ExpressionAction{Expression: right})
 		}
 	case "-":
 		switch right.(type) {
 		case *ast.IntegerLiteral:
 			return &ast.IntegerLiteral{Value: -1 * right.(*ast.IntegerLiteral).Value}
 		default:
-			panic("- operation expects integer.")
+			r.fatalError("- operation expects integer.", &ast.ExpressionAction{Expression: right})
 		}
 	}
 	return nil
@@ -505,7 +522,7 @@ func (r *Runner) evaluateInfixExpression(expression *ast.InfixExpression) ast.Ex
 		if err == nil {
 			return result
 		}
-		panic("unable to make comparison")
+		r.fatalError("unable to make comparison", &ast.ExpressionAction{Expression: expression})
 	}
 	return nil
 }
@@ -630,7 +647,8 @@ func (r *Runner) lookupAndEvaluateFunction(expression *ast.CallExpression) {
 	fnName := expression.Function.(*ast.Identifier).Value
 	fn, ok := r.Functions[fnName]
 	if !ok {
-		panic("function not found!")
+		r.fatalError("function "+fnName+" not found!", &ast.ExpressionAction{Expression: expression})
+		return
 	}
 	r.doAction(fn.Body)
 }
@@ -652,7 +670,7 @@ func (r *Runner) doFastForward(target string) {
 	rule := r.applyVariablesToString(target)
 	re, err := regexp.Compile(rule)
 	if err != nil {
-		panic(err)
+		r.fatalError(err.Error(), nil)
 	}
 	line := ""
 	for ok := true; ok; ok = (!re.MatchString(line)) {
@@ -670,7 +688,7 @@ func (r *Runner) doRewind(target string) {
 	rule := r.applyVariablesToString(target)
 	re, err := regexp.Compile(rule)
 	if err != nil {
-		panic(err)
+		r.fatalError(err.Error(), nil)
 	}
 	line := ""
 	for ok := true; ok; ok = (!re.MatchString(line)) {
@@ -689,7 +707,7 @@ func (r *Runner) doIfAction(action *ast.IfAction) {
 	case *ast.Boolean:
 		exprResult = result.(*ast.Boolean).Value
 	default:
-		panic("type error expected bool in if statement")
+		r.fatalError("type error expected bool in if statement", action)
 	}
 	if exprResult {
 		r.doAction(action.Consequence)
@@ -703,3 +721,16 @@ func (r *Runner) doExpressionAction(action *ast.ExpressionAction) {
 }
 
 func (r *Runner) doNoOp() {}
+
+func (r *Runner) fatalError(msg string, action ast.Action) {
+	r.ShouldHalt = true
+	r.DidFatalError = true
+	if r.CurrState == "" {
+		r.CurrState = "INIT"
+	}
+	io.WriteString(r.OutputTape, "Runtime Error in state: "+r.CurrState+"\n")
+	if action != nil {
+		io.WriteString(r.OutputTape, "Action: "+action.String()+"\n")
+	}
+	io.WriteString(r.OutputTape, msg+"\n")
+}
