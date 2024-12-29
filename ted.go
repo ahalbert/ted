@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 
 	"github.com/ahalbert/ted/ted/flags"
 	"github.com/ahalbert/ted/ted/lexer"
@@ -56,17 +57,42 @@ func main() {
 		io.WriteString(os.Stdout, parsedFSA.String())
 	}
 
-	r := runner.NewRunner(parsedFSA)
+	variables := make(map[string]string)
+	if flags.Flags.Seperator == "" {
+		variables["$RS"] = "\n"
+	} else {
+		variables["$RS"] = flags.Flags.Seperator
+	}
+
+	if flags.Flags.NoPrint {
+		variables["$PRINTMODE"] = "noprint"
+	} else {
+		variables["$PRINTMODE"] = "print"
+	}
+
+	for _, varstring := range flags.Flags.Variables {
+		re, err := regexp.Compile("(.*?)=(.*)")
+		if err != nil {
+			panic("regex compile error")
+		}
+		matches := re.FindStringSubmatch(varstring)
+		if matches != nil {
+			variables[matches[1]] = matches[2]
+		} else {
+			panic("unparsable variable --var " + varstring)
+		}
+	}
+
+	r := runner.NewRunner(parsedFSA, variables)
 	if len(flags.Flags.InputFiles) > 0 {
 		for _, infile := range flags.Flags.InputFiles {
 			reader, err := os.Open(infile)
 			if err != nil {
 				panic("Input file " + infile + " not found")
 			}
-			r.RunFSA(reader)
+			r.RunFSAFromFile(reader, os.Stdout)
 		}
 	} else {
-		r.RunFSA(os.Stdin)
+		r.RunFSAFromFile(os.Stdin, os.Stdout)
 	}
-
 }

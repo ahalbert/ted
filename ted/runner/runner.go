@@ -12,7 +12,6 @@ import (
 	"text/template"
 
 	"github.com/ahalbert/ted/ted/ast"
-	"github.com/ahalbert/ted/ted/flags"
 	"github.com/edsrzf/mmap-go"
 	"github.com/rwtodd/Go.Sed/sed"
 )
@@ -27,10 +26,8 @@ type Runner struct {
 	DidResetUnderscoreVar bool
 	CaptureMode           string
 	CaptureVar            string
-	Seperator             string
-	CurrLine              int
-	MaxLine               int
 	Tape                  Tape
+	OutputTape            io.Writer
 	ShouldHalt            bool
 }
 
@@ -40,29 +37,14 @@ type State struct {
 	Actions   []ast.Action
 }
 
-func NewRunner(fsa ast.FSA) *Runner {
+func NewRunner(fsa ast.FSA, vars map[string]string) *Runner {
 	r := &Runner{
 		States:    make(map[string]*State),
-		Variables: make(map[string]string),
+		Variables: vars,
 		Functions: make(map[string]*ast.FunctionLiteral),
 	}
 	r.States["0"] = newState("0")
 	r.Variables["$_"] = ""
-	r.CurrLine = -1
-	r.MaxLine = 0
-
-	for _, varstring := range flags.Flags.Variables {
-		re, err := regexp.Compile("(.*?)=(.*)")
-		if err != nil {
-			panic("regex compile error")
-		}
-		matches := re.FindStringSubmatch(varstring)
-		if matches != nil {
-			r.Variables[matches[1]] = matches[2]
-		} else {
-			panic("unparsable variable --var " + varstring)
-		}
-	}
 
 	for idx, statement := range fsa.Statements {
 		switch statement.(type) {
@@ -134,27 +116,23 @@ func (s *State) addRule(action ast.Action) {
 	s.Actions = append(s.Actions, action)
 }
 
-func (r *Runner) RunFSAFromString(input string) {
+func (r *Runner) RunFSAFromString(input string, out *os.File) {
 	r.Tape = NewStringTape(input)
+	r.RunFSA(out)
 }
 
-func (r *Runner) RunFSAFromFile(file *os.File) {
-}
-
-func (r *Runner) RunFSA(file *os.File) {
-	mmap, err := mmap.Map(file, mmap.RDONLY, 0)
+func (r *Runner) RunFSAFromFile(in *os.File, out *os.File) {
+	mmap, err := mmap.Map(in, mmap.RDONLY, 0)
 	if err != nil {
 		panic("mmap error")
 	}
 	defer mmap.Unmap()
 	r.Tape = NewReversibleScanner(mmap)
+	r.RunFSA(out)
+}
 
-	if flags.Flags.NoPrint {
-		r.CaptureMode = "capture"
-		r.CaptureVar = "$NULL"
-	} else {
-		r.CaptureMode = "nocapture"
-	}
+func (r *Runner) RunFSA(output io.Writer) {
+	r.OutputTape = output
 
 	if r.StartState == "" {
 		r.StartState = "0"
@@ -169,6 +147,15 @@ func (r *Runner) RunFSA(file *os.File) {
 			}
 			r.doAction(action)
 		}
+	}
+
+	r.Tape.Split(r.getVariable("$RS"))
+
+	if r.getVariable("$PRINTMODE") == "noprint" {
+		r.CaptureMode = "capture"
+		r.CaptureVar = "$NULL"
+	} else {
+		r.CaptureMode = "nocapture"
 	}
 
 	//Run FSA
@@ -211,11 +198,11 @@ func (r *Runner) RunFSA(file *os.File) {
 		}
 
 		if r.CaptureMode == "capture" {
-			r.appendToVariable(r.CaptureVar, r.getVariable("$@")+"\n")
+			r.appendToVariable(r.CaptureVar, r.getVariable("$@")+r.getVariable("$RS"))
 		} else if r.CaptureMode == "temp" {
 			r.CaptureMode = "nocapture"
-		} else if !flags.Flags.NoPrint {
-			io.WriteString(os.Stdout, r.getVariable("$_")+"\n")
+		} else if r.getVariable("$PRINTMODE") == "print" {
+			io.WriteString(r.OutputTape, r.getVariable("$_")+r.getVariable("$RS"))
 			r.clearAndSetVariable("$_", "")
 		} else {
 			r.clearAndSetVariable("$_", "")
@@ -340,10 +327,11 @@ func (r *Runner) doSedAction(action *ast.DoSedAction) {
 	if err != nil {
 		panic("error running sed")
 	}
+	result = result[:len(result)-1]
 	if action.Variable == "$_" && r.CaptureMode != "capture" {
-		r.clearAndSetVariable(action.Variable, result[:len(result)-1])
-	} else {
 		r.clearAndSetVariable(action.Variable, result)
+	} else {
+		r.clearAndSetVariable(action.Variable, result+r.getVariable("$RS"))
 	}
 }
 
@@ -358,11 +346,12 @@ func (r *Runner) doUntilSedAction(action *ast.DoUntilSedAction) {
 	if err != nil {
 		panic("error running sed")
 	}
+	result = result[:len(result)-1]
 	if action.Variable == "$_" && r.CaptureMode != "capture" {
-		result = result[:len(result)-1]
-		r.clearAndSetVariable(action.Variable, result[:len(result)-1])
+		r.clearAndSetVariable(action.Variable, result)
+	} else {
+		r.clearAndSetVariable(action.Variable, result+r.getVariable("$RS"))
 	}
-	r.clearAndSetVariable(action.Variable, result)
 	if orig != result {
 		r.doAction(action.Action)
 	}
@@ -390,14 +379,14 @@ func (r *Runner) doPrintAction(action *ast.PrintAction) {
 	val := r.evaluateExpression(action.Expression)
 	switch val.(type) {
 	case *ast.StringLiteral:
-		io.WriteString(os.Stdout, val.(*ast.StringLiteral).Value)
+		io.WriteString(r.OutputTape, val.(*ast.StringLiteral).Value)
 	case *ast.IntegerLiteral:
-		io.WriteString(os.Stdout, strconv.Itoa(val.(*ast.IntegerLiteral).Value))
+		io.WriteString(r.OutputTape, strconv.Itoa(val.(*ast.IntegerLiteral).Value))
 	case *ast.Boolean:
 		if val.(*ast.Boolean).Value {
-			io.WriteString(os.Stdout, "true")
+			io.WriteString(r.OutputTape, "true")
 		} else {
-			io.WriteString(os.Stdout, "false")
+			io.WriteString(r.OutputTape, "false")
 		}
 	default:
 		panic("cannot print type")
@@ -408,14 +397,14 @@ func (r *Runner) doPrintLnAction(action *ast.PrintLnAction) {
 	val := r.evaluateExpression(action.Expression)
 	switch val.(type) {
 	case *ast.StringLiteral:
-		io.WriteString(os.Stdout, val.(*ast.StringLiteral).Value+"\n")
+		io.WriteString(r.OutputTape, val.(*ast.StringLiteral).Value+"\n")
 	case *ast.IntegerLiteral:
-		io.WriteString(os.Stdout, strconv.Itoa(val.(*ast.IntegerLiteral).Value)+"\n")
+		io.WriteString(r.OutputTape, strconv.Itoa(val.(*ast.IntegerLiteral).Value)+"\n")
 	case *ast.Boolean:
 		if val.(*ast.Boolean).Value {
-			io.WriteString(os.Stdout, "true"+"\n")
+			io.WriteString(r.OutputTape, "true"+"\n")
 		} else {
-			io.WriteString(os.Stdout, "false"+"\n")
+			io.WriteString(r.OutputTape, "false"+"\n")
 		}
 	default:
 		panic("cannot print type")
