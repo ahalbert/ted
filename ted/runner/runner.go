@@ -127,7 +127,6 @@ func (s *State) addRule(action ast.Action) {
 }
 
 func (r *Runner) RunFSAFromString(input string, out io.Writer) {
-	io.WriteString(out, "hello")
 	r.Tape = NewStringTape(input)
 	r.RunFSA(out)
 }
@@ -143,6 +142,7 @@ func (r *Runner) RunFSAFromFile(in *os.File, out io.Writer) {
 }
 
 func (r *Runner) RunFSA(output io.Writer) {
+	io.WriteString(output, "stuff")
 	r.DidFatalError = false
 	r.OutputTape = output
 
