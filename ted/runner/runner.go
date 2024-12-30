@@ -128,7 +128,7 @@ func (s *State) addRule(action ast.Action) {
 
 func (r *Runner) RunFSAFromString(input string, out io.Writer) {
 	r.Tape = NewStringTape(input)
-	r.RunFSA()
+	r.RunFSA(out)
 }
 
 func (r *Runner) RunFSAFromFile(in *os.File, out io.Writer) {
@@ -138,12 +138,12 @@ func (r *Runner) RunFSAFromFile(in *os.File, out io.Writer) {
 	}
 	defer mmap.Unmap()
 	r.Tape = NewReversibleScanner(mmap)
-	r.OutputTape = out
-	r.RunFSA()
+	r.RunFSA(out)
 }
 
-func (r *Runner) RunFSA() {
+func (r *Runner) RunFSA(output io.Writer) {
 	r.DidFatalError = false
+	r.OutputTape = output
 
 	if r.StartState == "" {
 		r.StartState = "0"
