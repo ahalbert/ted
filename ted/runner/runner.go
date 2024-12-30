@@ -128,7 +128,7 @@ func (s *State) addRule(action ast.Action) {
 
 func (r *Runner) RunFSAFromString(input string, out io.Writer) {
 	r.Tape = NewStringTape(input)
-	r.RunFSA(out)
+	r.RunFSA()
 }
 
 func (r *Runner) RunFSAFromFile(in *os.File, out io.Writer) {
@@ -138,12 +138,12 @@ func (r *Runner) RunFSAFromFile(in *os.File, out io.Writer) {
 	}
 	defer mmap.Unmap()
 	r.Tape = NewReversibleScanner(mmap)
-	r.RunFSA(out)
+	r.OutputTape = out
+	r.RunFSA()
 }
 
-func (r *Runner) RunFSA(output io.Writer) {
+func (r *Runner) RunFSA() {
 	r.DidFatalError = false
-	r.OutputTape = output
 
 	if r.StartState == "" {
 		r.StartState = "0"
@@ -213,7 +213,10 @@ func (r *Runner) RunFSA(output io.Writer) {
 		} else if r.CaptureMode == "temp" {
 			r.CaptureMode = "nocapture"
 		} else if r.getVariable("$PRINTMODE") == "print" {
-			io.WriteString(r.OutputTape, r.getVariable("$_")+r.getVariable("$RS"))
+			_, err := io.WriteString(r.OutputTape, r.getVariable("$_")+r.getVariable("$RS"))
+			if err != nil {
+				r.fatalError(err.Error(), nil)
+			}
 			r.clearAndSetVariable("$_", "")
 		} else {
 			r.clearAndSetVariable("$_", "")
@@ -401,38 +404,46 @@ func (r *Runner) doResetAction(action *ast.ResetAction) {
 
 func (r *Runner) doPrintAction(action *ast.PrintAction) {
 	val := r.evaluateExpression(action.Expression)
+	var err error
 	switch val.(type) {
 	case *ast.StringLiteral:
-		io.WriteString(r.OutputTape, val.(*ast.StringLiteral).Value)
+		_, err = io.WriteString(r.OutputTape, val.(*ast.StringLiteral).Value)
 	case *ast.IntegerLiteral:
-		io.WriteString(r.OutputTape, strconv.Itoa(val.(*ast.IntegerLiteral).Value))
+		_, err = io.WriteString(r.OutputTape, strconv.Itoa(val.(*ast.IntegerLiteral).Value))
 	case *ast.Boolean:
 		if val.(*ast.Boolean).Value {
-			io.WriteString(r.OutputTape, "true")
+			_, err = io.WriteString(r.OutputTape, "true")
 		} else {
-			io.WriteString(r.OutputTape, "false")
+			_, err = io.WriteString(r.OutputTape, "false")
 		}
 	default:
 		r.fatalError(fmt.Sprintf("cannot print type %v", val), action)
 		return
 	}
+	if err != nil {
+		r.fatalError(err.Error(), action)
+	}
 }
 
 func (r *Runner) doPrintLnAction(action *ast.PrintLnAction) {
 	val := r.evaluateExpression(action.Expression)
+	var err error
 	switch val.(type) {
 	case *ast.StringLiteral:
-		io.WriteString(r.OutputTape, val.(*ast.StringLiteral).Value+"\n")
+		_, err = io.WriteString(r.OutputTape, val.(*ast.StringLiteral).Value+"\n")
 	case *ast.IntegerLiteral:
-		io.WriteString(r.OutputTape, strconv.Itoa(val.(*ast.IntegerLiteral).Value)+"\n")
+		_, err = io.WriteString(r.OutputTape, strconv.Itoa(val.(*ast.IntegerLiteral).Value)+"\n")
 	case *ast.Boolean:
 		if val.(*ast.Boolean).Value {
-			io.WriteString(r.OutputTape, "true"+"\n")
+			_, err = io.WriteString(r.OutputTape, "true"+"\n")
 		} else {
-			io.WriteString(r.OutputTape, "false"+"\n")
+			_, err = io.WriteString(r.OutputTape, "false"+"\n")
 		}
 	default:
 		r.fatalError(fmt.Sprintf("cannot print type %v", val), action)
+	}
+	if err != nil {
+		r.fatalError(err.Error(), action)
 	}
 }
 
@@ -737,9 +748,18 @@ func (r *Runner) fatalError(msg string, action ast.Action) {
 	if r.CurrState == "" {
 		r.CurrState = "INIT"
 	}
-	io.WriteString(r.OutputTape, "Runtime Error in state: "+r.CurrState+"\n")
-	if action != nil {
-		io.WriteString(r.OutputTape, "Action: "+action.String()+"\n")
+	_, err := io.WriteString(r.OutputTape, "Runtime Error in state: "+r.CurrState+"\n")
+	if err != nil {
+		panic(err)
 	}
-	io.WriteString(r.OutputTape, msg+"\n")
+	if action != nil {
+		_, err = io.WriteString(r.OutputTape, "Action: "+action.String()+"\n")
+		if err != nil {
+			panic(err)
+		}
+	}
+	_, err = io.WriteString(r.OutputTape, msg+"\n")
+	if err != nil {
+		panic(err)
+	}
 }
