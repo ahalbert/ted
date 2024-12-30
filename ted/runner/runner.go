@@ -142,9 +142,9 @@ func (r *Runner) RunFSAFromFile(in *os.File, out io.Writer) {
 }
 
 func (r *Runner) RunFSA(output io.Writer) {
-	io.WriteString(output, "stuff")
 	r.DidFatalError = false
 	r.OutputTape = output
+	io.WriteString(r.OutputTape, "mystuff")
 
 	if r.StartState == "" {
 		r.StartState = "0"
