@@ -144,7 +144,6 @@ func (r *Runner) RunFSAFromFile(in *os.File, out io.Writer) {
 func (r *Runner) RunFSA(output io.Writer) {
 	r.DidFatalError = false
 	r.OutputTape = output
-	io.WriteString(r.OutputTape, "mystuff")
 
 	if r.StartState == "" {
 		r.StartState = "0"
@@ -157,10 +156,12 @@ func (r *Runner) RunFSA(output io.Writer) {
 			if r.DidTransition {
 				break
 			}
+			io.WriteString(r.OutputTape, "running\n")
 			r.doAction(action)
 		}
 	}
 
+	io.WriteString(r.OutputTape, "starting\n")
 	r.Tape.Split(r.getVariable("$RS"))
 
 	if r.getVariable("$PRINTMODE") == "noprint" {
@@ -177,6 +178,7 @@ func (r *Runner) RunFSA(output io.Writer) {
 			break
 		}
 		line := r.Tape.Text()
+		io.WriteString(r.OutputTape, line)
 		r.clearAndSetVariable("$@", line)
 
 		if !(r.CaptureVar == "$_" && r.CaptureMode == "capture") {
