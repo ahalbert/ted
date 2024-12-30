@@ -25,14 +25,12 @@ type StringTape struct {
 	input     string
 	groups    []string
 	offset    int
-	maxOffset int
 	seperator string
 }
 
 func NewStringTape(in string) *StringTape {
 	return &StringTape{input: in,
 		offset:    -1,
-		maxOffset: -1,
 		seperator: "\n",
 		groups:    strings.Split(in, "\n"),
 	}
@@ -56,17 +54,15 @@ func (ss *StringTape) Prev() bool {
 }
 
 func (ss *StringTape) Next() bool {
+	ss.offset++
 	if ss.offset >= len(ss.groups) {
 		return false
 	}
-	ss.offset++
-	ss.maxOffset = max(ss.offset, ss.maxOffset)
 	return true
 }
 
 func (ss *StringTape) Scan() bool {
-	ss.maxOffset++
-	ss.offset = ss.maxOffset
+	ss.offset++
 	if ss.offset >= len(ss.groups) {
 		return false
 	}
