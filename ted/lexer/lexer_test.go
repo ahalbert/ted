@@ -2,6 +2,8 @@ package lexer
 
 import (
 	"testing"
+
+	"github.com/ahalbert/ted/ted/token"
 )
 
 func TestReadChar(t *testing.T) {
@@ -22,6 +24,12 @@ func TestReadChar(t *testing.T) {
 			expectedChars:         []byte{'h', 'e', 'l', 'l', 'o', 0},
 			expectedPositions:     []int{0, 1, 2, 3, 4, 5},
 			expectedReadPositions: []int{1, 2, 3, 4, 5, 6},
+		},
+		{
+			input:                 "a\nb",
+			expectedChars:         []byte{'a', '\n', 'b', 0},
+			expectedPositions:     []int{0, 1, 2, 3},
+			expectedReadPositions: []int{1, 2, 3, 4},
 		},
 		{
 			input:                 "",
@@ -83,6 +91,7 @@ func TestReadDo(t *testing.T) {
 		{"simple text", "simple"},
 		{"  whitespace", "whitespace"},
 		{"whitespace  ", "whitespace"},
+		{"#whitespace \nab", "ab"},
 	}
 
 	for i, tt := range tests {
@@ -113,6 +122,113 @@ func TestReadIdentifier(t *testing.T) {
 		output := l.readIdentifier()
 		if output != tt.expectedOutput {
 			t.Errorf("test[%d] - readIdentifier() = %q, want %q", i, output, tt.expectedOutput)
+		}
+	}
+}
+
+func TestNextToken(t *testing.T) {
+	tests := []struct {
+		input          string
+		expectedTokens []struct {
+			expectedType    token.TokenType
+			expectedLiteral string
+		}
+	}{
+		{
+			input: `=+(){},;*:`, // char tests
+			expectedTokens: []struct {
+				expectedType    token.TokenType
+				expectedLiteral string
+			}{
+				{token.ASSIGN, "="},
+				{token.PLUS, "+"},
+				{token.LPAREN, "("},
+				{token.RPAREN, ")"},
+				{token.LBRACE, "{"},
+				{token.RBRACE, "}"},
+				{token.COMMA, ","},
+				{token.SEMICOLON, ";"},
+				{token.ASTERISK, "*"},
+				{token.COLON, ":"},
+				{token.EOF, ""},
+			},
+		},
+		{
+			input: `/ab{2}/`, // regexp test
+			expectedTokens: []struct {
+				expectedType    token.TokenType
+				expectedLiteral string
+			}{
+				{token.REGEX, "ab{2}"},
+				{token.EOF, ""},
+			},
+		},
+		{
+			input: `/ +`, // slash test
+			expectedTokens: []struct {
+				expectedType    token.TokenType
+				expectedLiteral string
+			}{
+				{token.SLASH, "/"},
+				{token.PLUS, "+"},
+				{token.EOF, ""},
+			},
+		},
+		{
+			input: `"abcd"`, // string test
+			expectedTokens: []struct {
+				expectedType    token.TokenType
+				expectedLiteral string
+			}{
+				{token.STRING, "abcd"},
+				{token.EOF, ""},
+			},
+		},
+		{
+			input: `'abcd'`, // string test
+			expectedTokens: []struct {
+				expectedType    token.TokenType
+				expectedLiteral string
+			}{
+				{token.STRING, "abcd"},
+				{token.EOF, ""},
+			},
+		},
+		{
+			input: "`abcd`", // string test
+			expectedTokens: []struct {
+				expectedType    token.TokenType
+				expectedLiteral string
+			}{
+				{token.STRING, "abcd"},
+				{token.EOF, ""},
+			},
+		},
+		{
+			input: `!`, // illegal char test
+			expectedTokens: []struct {
+				expectedType    token.TokenType
+				expectedLiteral string
+			}{
+				{token.ILLEGAL, "!"},
+				{token.EOF, ""},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		l := New(tt.input)
+
+		for i, expectedToken := range tt.expectedTokens {
+			tok := l.NextToken()
+
+			if tok.Type != expectedToken.expectedType {
+				t.Fatalf("input: %q, tests[%d] - tokentype wrong. expected=%q, got=%q", tt.input, i, expectedToken.expectedType, tok.Type)
+			}
+
+			if tok.Literal != expectedToken.expectedLiteral {
+				t.Fatalf("input: %q, tests[%d] - literal wrong. expected=%q, got=%q", tt.input, i, expectedToken.expectedLiteral, tok.Literal)
+			}
 		}
 	}
 }
