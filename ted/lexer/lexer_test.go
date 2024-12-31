@@ -214,6 +214,113 @@ func TestNextToken(t *testing.T) {
 				{token.EOF, ""},
 			},
 		},
+		{
+			input: `/foo/ -> /bar/ -> do s/baz/bang/`, // sample input
+			expectedTokens: []struct {
+				expectedType    token.TokenType
+				expectedLiteral string
+			}{
+				{token.REGEX, "foo"},
+				{token.GOTO, "->"},
+				{token.REGEX, "bar"},
+				{token.GOTO, "->"},
+				{token.DO, "s/baz/bang/"},
+				{token.EOF, ""},
+			},
+		},
+		{
+			input: `{ capture fastforward /buzz/ -> }`, // sample input
+			expectedTokens: []struct {
+				expectedType    token.TokenType
+				expectedLiteral string
+			}{
+				{token.LBRACE, "{"},
+				{token.CAPTURE, "capture"},
+				{token.FASTFWD, "fastforward"},
+				{token.REGEX, "buzz"},
+				{token.GOTO, "->"},
+				{token.RBRACE, "}"},
+				{token.EOF, ""},
+			},
+		},
+		{
+			input: `dountil s/buzz/boop/ ->`, // sample input
+			expectedTokens: []struct {
+				expectedType    token.TokenType
+				expectedLiteral string
+			}{
+				{token.DOUNTIL, "s/buzz/boop/"},
+				{token.GOTO, "->"},
+				{token.EOF, ""},
+			},
+		},
+		{
+			input: `# Welcome to Ted!
+			/foo/ -> /bar/ -> do s/baz/bang/`, // sample input
+			expectedTokens: []struct {
+				expectedType    token.TokenType
+				expectedLiteral string
+			}{
+				{token.REGEX, "foo"},
+				{token.GOTO, "->"},
+				{token.REGEX, "bar"},
+				{token.GOTO, "->"},
+				{token.DO, "s/baz/bang/"},
+				{token.EOF, ""},
+			},
+		},
+		{
+			input: `/buzz/ {println myvar}`, // sample input
+			expectedTokens: []struct {
+				expectedType    token.TokenType
+				expectedLiteral string
+			}{
+				{token.REGEX, "buzz"},
+				{token.LBRACE, "{"},
+				{token.PRINTLN, "println"},
+				{token.IDENT, "myvar"},
+				{token.RBRACE, "}"},
+				{token.EOF, ""},
+			},
+		},
+		{
+			input: `ALL: /Success/ --> `, // sample input
+			expectedTokens: []struct {
+				expectedType    token.TokenType
+				expectedLiteral string
+			}{
+				{token.LABEL, "ALL"},
+				{token.REGEX, "Success"},
+				{token.RESET, "-->"},
+				{token.EOF, ""},
+			},
+		},
+		{
+			input: `5: { println count /div/ let count = count - 1 if count == 0 -> }`, // sample input
+			expectedTokens: []struct {
+				expectedType    token.TokenType
+				expectedLiteral string
+			}{
+				{token.LABEL, "5"},
+				{token.LBRACE, "{"},
+				{token.PRINTLN, "println"},
+				{token.IDENT, "count"},
+				{token.REGEX, "div"},
+				{token.LET, "let"},
+				{token.IDENT, "count"},
+				{token.ASSIGN, "="},
+				{token.IDENT, "count"},
+				{token.MINUS, "-"},
+				{token.IDENT, "1"},
+				{token.IF, "if"},
+				{token.IDENT, "count"},
+				{token.EQ, "=="},
+				{token.IDENT, "0"},
+				{token.GOTO, "->"},
+				{token.RBRACE, "}"},
+				{token.EOF, ""},
+			},
+		},
 	}
 
 	for _, tt := range tests {
