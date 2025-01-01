@@ -2,6 +2,8 @@ package lexer
 
 import (
 	"testing"
+
+	"github.com/ahalbert/ted/ted/token"
 )
 
 func TestReadChar(t *testing.T) {
@@ -22,6 +24,12 @@ func TestReadChar(t *testing.T) {
 			expectedChars:         []byte{'h', 'e', 'l', 'l', 'o', 0},
 			expectedPositions:     []int{0, 1, 2, 3, 4, 5},
 			expectedReadPositions: []int{1, 2, 3, 4, 5, 6},
+		},
+		{
+			input:                 "a\nb",
+			expectedChars:         []byte{'a', '\n', 'b', 0},
+			expectedPositions:     []int{0, 1, 2, 3},
+			expectedReadPositions: []int{1, 2, 3, 4},
 		},
 		{
 			input:                 "",
@@ -83,6 +91,7 @@ func TestReadDo(t *testing.T) {
 		{"simple text", "simple"},
 		{"  whitespace", "whitespace"},
 		{"whitespace  ", "whitespace"},
+		{"#whitespace \nab", "ab"},
 	}
 
 	for i, tt := range tests {
@@ -113,6 +122,220 @@ func TestReadIdentifier(t *testing.T) {
 		output := l.readIdentifier()
 		if output != tt.expectedOutput {
 			t.Errorf("test[%d] - readIdentifier() = %q, want %q", i, output, tt.expectedOutput)
+		}
+	}
+}
+
+func TestNextToken(t *testing.T) {
+	tests := []struct {
+		input          string
+		expectedTokens []struct {
+			expectedType    token.TokenType
+			expectedLiteral string
+		}
+	}{
+		{
+			input: `=+(){},;*:`, // char tests
+			expectedTokens: []struct {
+				expectedType    token.TokenType
+				expectedLiteral string
+			}{
+				{token.ASSIGN, "="},
+				{token.PLUS, "+"},
+				{token.LPAREN, "("},
+				{token.RPAREN, ")"},
+				{token.LBRACE, "{"},
+				{token.RBRACE, "}"},
+				{token.COMMA, ","},
+				{token.SEMICOLON, ";"},
+				{token.ASTERISK, "*"},
+				{token.COLON, ":"},
+				{token.EOF, ""},
+			},
+		},
+		{
+			input: `/ab{2}/`, // regexp test
+			expectedTokens: []struct {
+				expectedType    token.TokenType
+				expectedLiteral string
+			}{
+				{token.REGEX, "ab{2}"},
+				{token.EOF, ""},
+			},
+		},
+		{
+			input: `/ +`, // slash test
+			expectedTokens: []struct {
+				expectedType    token.TokenType
+				expectedLiteral string
+			}{
+				{token.SLASH, "/"},
+				{token.PLUS, "+"},
+				{token.EOF, ""},
+			},
+		},
+		{
+			input: `"abcd"`, // string test
+			expectedTokens: []struct {
+				expectedType    token.TokenType
+				expectedLiteral string
+			}{
+				{token.STRING, "abcd"},
+				{token.EOF, ""},
+			},
+		},
+		{
+			input: `'abcd'`, // string test
+			expectedTokens: []struct {
+				expectedType    token.TokenType
+				expectedLiteral string
+			}{
+				{token.STRING, "abcd"},
+				{token.EOF, ""},
+			},
+		},
+		{
+			input: "`abcd`", // string test
+			expectedTokens: []struct {
+				expectedType    token.TokenType
+				expectedLiteral string
+			}{
+				{token.STRING, "abcd"},
+				{token.EOF, ""},
+			},
+		},
+		{
+			input: `!`, // illegal char test
+			expectedTokens: []struct {
+				expectedType    token.TokenType
+				expectedLiteral string
+			}{
+				{token.ILLEGAL, "!"},
+				{token.EOF, ""},
+			},
+		},
+		{
+			input: `/foo/ -> /bar/ -> do s/baz/bang/`, // sample input
+			expectedTokens: []struct {
+				expectedType    token.TokenType
+				expectedLiteral string
+			}{
+				{token.REGEX, "foo"},
+				{token.GOTO, "->"},
+				{token.REGEX, "bar"},
+				{token.GOTO, "->"},
+				{token.DO, "s/baz/bang/"},
+				{token.EOF, ""},
+			},
+		},
+		{
+			input: `{ capture fastforward /buzz/ -> }`, // sample input
+			expectedTokens: []struct {
+				expectedType    token.TokenType
+				expectedLiteral string
+			}{
+				{token.LBRACE, "{"},
+				{token.CAPTURE, "capture"},
+				{token.FASTFWD, "fastforward"},
+				{token.REGEX, "buzz"},
+				{token.GOTO, "->"},
+				{token.RBRACE, "}"},
+				{token.EOF, ""},
+			},
+		},
+		{
+			input: `dountil s/buzz/boop/ ->`, // sample input
+			expectedTokens: []struct {
+				expectedType    token.TokenType
+				expectedLiteral string
+			}{
+				{token.DOUNTIL, "s/buzz/boop/"},
+				{token.GOTO, "->"},
+				{token.EOF, ""},
+			},
+		},
+		{
+			input: `# Welcome to Ted!
+			/foo/ -> /bar/ -> do s/baz/bang/`, // sample input
+			expectedTokens: []struct {
+				expectedType    token.TokenType
+				expectedLiteral string
+			}{
+				{token.REGEX, "foo"},
+				{token.GOTO, "->"},
+				{token.REGEX, "bar"},
+				{token.GOTO, "->"},
+				{token.DO, "s/baz/bang/"},
+				{token.EOF, ""},
+			},
+		},
+		{
+			input: `/buzz/ {println myvar}`, // sample input
+			expectedTokens: []struct {
+				expectedType    token.TokenType
+				expectedLiteral string
+			}{
+				{token.REGEX, "buzz"},
+				{token.LBRACE, "{"},
+				{token.PRINTLN, "println"},
+				{token.IDENT, "myvar"},
+				{token.RBRACE, "}"},
+				{token.EOF, ""},
+			},
+		},
+		{
+			input: `ALL: /Success/ --> `, // sample input
+			expectedTokens: []struct {
+				expectedType    token.TokenType
+				expectedLiteral string
+			}{
+				{token.LABEL, "ALL"},
+				{token.REGEX, "Success"},
+				{token.RESET, "-->"},
+				{token.EOF, ""},
+			},
+		},
+		{
+			input: `5: { println count /div/ let count = count - 1 if count == 0 -> }`, // sample input
+			expectedTokens: []struct {
+				expectedType    token.TokenType
+				expectedLiteral string
+			}{
+				{token.LABEL, "5"},
+				{token.LBRACE, "{"},
+				{token.PRINTLN, "println"},
+				{token.IDENT, "count"},
+				{token.REGEX, "div"},
+				{token.LET, "let"},
+				{token.IDENT, "count"},
+				{token.ASSIGN, "="},
+				{token.IDENT, "count"},
+				{token.MINUS, "-"},
+				{token.IDENT, "1"},
+				{token.IF, "if"},
+				{token.IDENT, "count"},
+				{token.EQ, "=="},
+				{token.IDENT, "0"},
+				{token.GOTO, "->"},
+				{token.RBRACE, "}"},
+				{token.EOF, ""},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		l := New(tt.input)
+
+		for i, expectedToken := range tt.expectedTokens {
+			tok := l.NextToken()
+
+			if tok.Type != expectedToken.expectedType {
+				t.Fatalf("input: %q, tests[%d] - tokentype wrong. expected=%q, got=%q", tt.input, i, expectedToken.expectedType, tok.Type)
+			}
+
+			if tok.Literal != expectedToken.expectedLiteral {
+				t.Fatalf("input: %q, tests[%d] - literal wrong. expected=%q, got=%q", tt.input, i, expectedToken.expectedLiteral, tok.Literal)
+			}
 		}
 	}
 }
