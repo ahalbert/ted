@@ -9,13 +9,17 @@ A tool for editing files according to the rules of a provided Turing Machine
 
 </div>
 
-
+* [Demo](#demo)
 * [Motivation](#motivation)
 * [Installing](#installing)
 * [Examples](#examples)
 * [Flags](#flags)
 * [Syntax](#syntax)
 * [Contact](#contact)
+
+## Demo 
+
+ted now has a live demo! [Try it out here](https://www.ahalbert.com/projects/ted/ted.html).
 
 ## Motivation
 
