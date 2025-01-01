@@ -79,7 +79,7 @@ func getNextStateInList(statements []ast.Statement, idx int, currState string) s
 			stmt := statement.(*ast.StateStatement)
 			if stmt.StateName == currState {
 				found = true
-			} else if found {
+			} else if found && stmt.StateName != "BEGIN" && stmt.StateName != "END" && stmt.StateName != "ALL" {
 				return stmt.StateName
 			}
 		}
@@ -699,8 +699,8 @@ func (r *Runner) doFastForward(target string) {
 			return
 		}
 		line = r.Tape.Text()
-		r.clearAndSetVariable("$@", line)
 	}
+	r.clearAndSetVariable("$@", line)
 	r.Tape.Prev()
 }
 
@@ -717,6 +717,7 @@ func (r *Runner) doRewind(target string) {
 		}
 		line = r.Tape.Text()
 	}
+	r.clearAndSetVariable("$@", line)
 	r.Tape.Prev()
 }
 
