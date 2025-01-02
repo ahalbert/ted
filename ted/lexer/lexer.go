@@ -182,7 +182,7 @@ func (l *Lexer) readUntilChar(chars ...byte) string {
 }
 
 func isLetter(ch byte) bool {
-	return 'a' <= ch && ch <= 'z' || 'A' <= ch && ch <= 'Z' || '0' <= ch && ch <= '9' || ch == '_' || ch == '$'
+	return 'a' <= ch && ch <= 'z' || 'A' <= ch && ch <= 'Z' || '0' <= ch && ch <= '9' || ch == '_' || ch == '$' || ch == '@'
 }
 
 func (l *Lexer) newToken(tokenType token.TokenType, s string) token.Token {
