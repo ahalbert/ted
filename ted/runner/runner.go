@@ -128,6 +128,7 @@ func (s *State) addRule(action ast.Action) {
 
 func (r *Runner) RunFSAFromString(input string, out io.Writer) {
 	r.Tape = NewStringTape(input)
+	r.OutputTape = out
 	r.RunFSA()
 }
 

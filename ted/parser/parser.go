@@ -230,6 +230,9 @@ func (p *Parser) parseAction() ast.Action {
 		action = p.parseMoveHeadAction()
 	case token.IF:
 		action = p.parseIfAction()
+	case token.ILLEGAL:
+		p.addError(fmt.Sprintf("expected action, got illegal token %s", p.curToken.Literal))
+		return nil
 	default:
 		action = p.parseExpressionAction()
 		// p.addError(fmt.Sprintf("expected action, got %s %s", p.curToken.Type, p.curToken.Literal))
