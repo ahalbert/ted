@@ -222,6 +222,8 @@ func (p *Parser) parseAction() ast.Action {
 		action = p.parseStartStopCaptureAction()
 	case token.CAPTURE:
 		action = p.parseCaptureAction()
+	case token.CLEAR:
+		action = p.parseClearAction()
 	case token.LET:
 		action = p.parseAssignAction()
 	case token.REWIND:
