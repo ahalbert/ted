@@ -229,7 +229,7 @@ func (r *Runner) RunFSA() {
 	state, ok = r.States[r.CurrState]
 	if ok && !r.DidFatalError {
 		for _, action := range state.Actions {
-			if r.DidFatalError {
+			if r.DidFatalError || r.DidTransition {
 				break
 			}
 			r.doAction(action)
