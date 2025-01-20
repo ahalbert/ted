@@ -350,9 +350,14 @@ Various actions can be specified in a state:
 
 #### Assign Variable
 
-`let variable = expr`
+`let variable = expression`
 
-Assigns `variable` to `expr` 
+Assigns `variable` to `expression` 
+
+
+#### Expressions
+
+Supports addition, subtraction, multiplication and division. Attempts to coerce strings to integers when doing math.
 
 #### Do action on Regex
 
@@ -364,7 +369,14 @@ Perform `Action` if the current line matches regex. If capture groups are used, 
 
 `do s/sed/command/g [variable]`
 
-Execute `sed` command on `variable`. If no `variable` is specified, assumes the current line or capture. 
+Execute `sed` command on `variable`. If no `variable` is specified, assumes the current line or capture.
+
+
+#### Dountil
+
+`dountil s/sed/command/g [variable] Action`
+
+Perform sed command, and run Action on successful substitution
 
 #### Goto Action
 
@@ -372,6 +384,11 @@ Execute `sed` command on `variable`. If no `variable` is specified, assumes the 
 
 Change current state to `statename`. If a state is not specified, assumes the next state listed in the program. If this is the last state, goes to state "0". 
 
+#### Goto start state
+
+`-->`
+
+Transitions state to start state.
 
 #### Do multiple actions
 
@@ -402,6 +419,23 @@ Starts/Stops capturing to `variable`. When capturing is started, input lines are
 `rewind|fastforward /regex/`
 
 Moves the head backwards/forward to the first line matching `regex`. Stops if it hits the beginning, or halts if it hits the end of file. 
+
+#### if/else
+
+`if BoolExpr Action [else Action]`
+
+Executes `action` only if the condtion in BoolExpr is true. An optional else clause is also possible.
+
+
+### Special States
+
+Special pre-defined states exist as well.
+
+`BEGIN`: Actions in this state are run once before consuming any input. Transitioning will stop executing the action.  
+
+`END`: Actions in this state are run after all input is consumed. Cannot transition in this state.
+
+`ALL`: Actions that are run after every state, even if state transitioned during that cycle. Does not apply to `BEGIN` and `END`
 
 ### Predefined Variables
 
