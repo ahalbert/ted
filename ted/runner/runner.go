@@ -353,7 +353,9 @@ func (r *Runner) doSedAction(action *ast.DoSedAction) {
 		r.fatalError(fmt.Errorf("error running sed: %w", err).Error(), action)
 		return
 	}
-	result = result[:len(result)-1]
+	if len(result) > 0 {
+		result = result[:len(result)-1]
+	}
 	if action.Variable == "$_" && r.CaptureMode != "capture" {
 		r.clearAndSetVariable(action.Variable, result)
 	} else {
