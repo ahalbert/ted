@@ -94,10 +94,13 @@ func main() {
 		}
 	} else {
 		stdin, err := io.ReadAll(os.Stdin)
-
 		if err != nil {
 			panic(err)
 		}
-		r.RunFSAFromString(string(stdin), os.Stdout)
+		str := string(stdin)
+		if len(str) > 0 {
+			str = str[:len(str)-1]
+		}
+		r.RunFSAFromString(str, os.Stdout)
 	}
 }
