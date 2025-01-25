@@ -93,6 +93,11 @@ func main() {
 			r.RunFSAFromFile(reader, os.Stdout)
 		}
 	} else {
-		r.RunFSAFromFile(os.Stdin, os.Stdout)
+		stdin, err := io.ReadAll(os.Stdin)
+
+		if err != nil {
+			panic(err)
+		}
+		r.RunFSAFromString(string(stdin), os.Stdout)
 	}
 }
