@@ -203,6 +203,9 @@ func (rs *ReversibleScanner) Scan() bool {
 		nextRune, size, err := rs.readRune()
 		if err != nil {
 			rs.readAll = true
+			if errors.Is(err, ErrEof) {
+				return false
+			}
 			if begin == end {
 				return false
 			}
